@@ -137,12 +137,22 @@ void create_compress_dictionary(FILE *input)
 
         last_parts_i = parts_i++;
       }
+
+      free(parts[--parts_count]);
     }
 
-    free(parts[parts_count - 1]);
+    if (!actual_parts_count) {
+      free(parts);
+      continue;
+    }
 
-    if (!actual_parts_count) { continue; }
-    if (compress_dictionary_size + actual_parts_count > 0xFFF) { break; }
+    if (compress_dictionary_size + actual_parts_count > 0xFFF) {
+      while (parts_count) {
+        free(parts[--parts_count]);
+      }
+      free(parts);
+      break;
+    }
 
     {
       uint16_t cdi = compress_dictionary_size;
@@ -168,6 +178,8 @@ void create_compress_dictionary(FILE *input)
         free(parts[parts_i++]);
       }
     }
+
+    free(parts);
   }
 }
 
@@ -178,6 +190,13 @@ uint16_t *optimize_compress_dictionary(void)
 
 void delete_compress_dictionary(void)
 {
+  for (uint16_t i = 0; i < compress_dictionary_size; ++i) {
+    free(compress_dictionary[i].data);
+  }
+
+  compress_dictionary_size = 0;
+  free(compress_dictionary);
+  compress_dictionary = NULL;
 }
 
 void compress(FILE *input, FILE *output)
