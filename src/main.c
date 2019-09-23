@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
+extern void compress(FILE *input, FILE *output);
 extern void decompress(FILE *input, FILE *output);
 
 void print_usage(void)
@@ -21,17 +22,17 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  char buffer[] = {
-    0x00, 0x02,
-    0x80, 6, 0x03, 'F', 'u', 'c', 'k', 0x42,
-    0x00, 4, 'Y', 'o', 'u', '!',
-    0x70, 0, 0x70, 1, 0x46, 0x50, 6};
-  FILE *input = fmemopen(buffer, 2 + 8 + 6 + 7, "rb");
+  //  char buffer[] = {
+  //    0x00, 0x02,
+  //    0x80, 6, 0x03, 'F', 'u', 'c', 'k', 0x42,
+  //    0x00, 4, 'Y', 'o', 'u', '!',
+  //    0x70, 0, 0x70, 1, 0x46, 0x50, 6};
+  //  FILE *input = fmemopen(buffer, 2 + 8 + 6 + 7, "rb");
 
-  // FILE *input = fopen(argv[1], "rb");
+  FILE *input = fopen(argv[1], "rb");
   FILE *output = fopen(strcat(argv[1], ".bc"), "wb+");
 
-  decompress(input, output);
+  compress(input, output);
 
   fclose(input);
   fclose(output);

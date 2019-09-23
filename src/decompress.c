@@ -4,7 +4,7 @@
 
 typedef struct decompress_dictionary_item_t {
   uint8_t *data;
-  uint32_t length;
+  uint16_t length;
 } decompress_dictionary_item;
 
 // ================================================================================ external functions
@@ -101,7 +101,7 @@ void repeat_string(uint8_t lower_half, FILE *input, FILE *output)
 {
   lower_half += 2;
 
-  uint8_t *str = alloca(lower_half);
+  uint8_t *str = alloca(lower_half * sizeof(uint8_t));
   fseek(output, -lower_half, SEEK_CUR);
   fread(str, 1, lower_half, output);
 
@@ -112,7 +112,7 @@ void repeat_string_long(uint8_t lower_half, FILE *input, FILE *output)
 {
   lower_half += 2;
 
-  uint8_t *str = alloca(lower_half);
+  uint8_t *str = alloca(lower_half * sizeof(uint8_t));
   fseek(output, -lower_half, SEEK_CUR);
   fread(str, 1, lower_half, output);
 
@@ -126,7 +126,7 @@ void mirror_string(uint8_t lower_half, FILE *input, FILE *output)
 {
   lower_half += 2;
 
-  uint8_t *str = alloca(lower_half);
+  uint8_t *str = alloca(lower_half * sizeof(uint8_t));
   fseek(output, -lower_half, SEEK_CUR);
   fread(str, 1, lower_half, output);
 
@@ -264,12 +264,12 @@ void create_decompress_dictionary(FILE *input)
       }
 
       item.length = ftell(tmp);
-      item.data = malloc(item.length);
+      item.data = malloc(item.length * sizeof(uint8_t));
 
       rewind(tmp);
       fread(item.data, 1, item.length, tmp);
     } else {
-      item.data = malloc(item.length);
+      item.data = malloc(item.length * sizeof(uint8_t));
       fread(item.data, 1, item.length, input);
     }
 
@@ -292,7 +292,7 @@ void decompress(FILE *input, FILE *output)
 {
   create_decompress_dictionary(input);
 
-  int32_t ch;
+  int16_t ch;
   while ((ch = getc(input)) != EOF) {
     DECOMPRESS_FUNCTIONS[ch >> 4](ch & 0x0F, input, output);
   }

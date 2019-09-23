@@ -1,17 +1,20 @@
+CFLAGS=-Wall -O0 -g3
 SOURCE_DIR=src
-TARGET_DIR=build
+TARGET_DIR=target
+
 HEADERS=$(wildcard $(SOURCE_DIR)/*.h)
 SOURCES=$(wildcard $(SOURCE_DIR)/*.c)
+
 OBJECTS=$(SOURCES:$(SOURCE_DIR)/%.c=$(TARGET_DIR)/%.o)
 EXECUTABLE=$(TARGET_DIR)/bc
 
 $(EXECUTABLE): $(OBJECTS)
 	mkdir -p $(TARGET_DIR)
-	gcc -Wall $(OBJECTS) -o $@
+	gcc $(CFLAGS) $(OBJECTS) -o $@
 
 $(TARGET_DIR)/%.o: $(SOURCE_DIR)/%.c
 	mkdir -p $(TARGET_DIR)
-	gcc -Wall -c -o $@ $<
+	gcc $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -rf $(TARGET_DIR)
