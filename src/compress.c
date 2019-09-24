@@ -17,7 +17,7 @@ void compress(FILE *input, FILE *output);
 
 static int32_t parts_compare(const void *a, const void *b);
 static void create_compress_dictionary(FILE *input);
-static uint16_t *optimize_compress_dictionary(void);
+static void optimize_compress_dictionary(uint16_t *new_dictionary_indexes);
 static void delete_compress_dictionary(void);
 
 // ================================================================================ internal variables
@@ -184,9 +184,8 @@ void create_compress_dictionary(FILE *input)
   }
 }
 
-uint16_t *optimize_compress_dictionary(void)
+void optimize_compress_dictionary(uint16_t *new_dictionary_indexes)
 {
-  return 0;
 }
 
 void delete_compress_dictionary(void)
@@ -207,13 +206,13 @@ void compress(FILE *input, FILE *output)
 
   // super_func(input, tmp);
 
-  // uint16_t *new_dictionary_indexes = optimize_compress_dictionary();
+  uint16_t *new_dictionary_indexes = malloc(compress_dictionary_size * sizeof(uint16_t));
+  optimize_compress_dictionary(new_dictionary_indexes);
 
   // write_compress_dictionary(output);
   // write_compress_data(tmp, output, new_dictionary_indexes);
 
-  // free(new_dictionary_indexes);
-
+  free(new_dictionary_indexes);
   fclose(tmp);
   delete_compress_dictionary();
 }
