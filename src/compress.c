@@ -38,7 +38,7 @@ static void perform_compression(FILE *input, FILE *output);
 
 static int32_t parts_compare(const void *a, const void *b);
 static void create_compress_dictionary(FILE *input);
-static void optimize_compress_dictionary(void);
+static void optimize_compress_dictionary(uint16_t *new_dictionary_indexes);
 static void delete_compress_dictionary(void);
 
 static void write_compress_dictionary(FILE *output);
@@ -54,6 +54,7 @@ static uint16_t compress_dictionary_size = 0;
 
 void perform_compression(FILE *input, FILE *output)
 {
+  rewind(input);
   // TODO
 }
 
@@ -112,7 +113,7 @@ void create_compress_dictionary(FILE *input)
         parts[parts_i][length] = EOF;
 
         fseek(input, -length, SEEK_CUR);
-        for (int j = 0; j < length; ++j) {
+        for (uint32_t j = 0; j < length; ++j) {
           parts[parts_i][j] = getc(input);
         }
 
@@ -213,9 +214,13 @@ void create_compress_dictionary(FILE *input)
   }
 }
 
-void optimize_compress_dictionary(void)
+void optimize_compress_dictionary(uint16_t *new_dictionary_indexes)
 {
-  // TODO
+  // TODO:
+  // Compress compress_dictionary data
+  // Fill new_dictionary_indexes
+  // Reallocate compress_dictionary
+  // Change compress_dictionary_size
 }
 
 void delete_compress_dictionary(void)
@@ -232,7 +237,7 @@ void delete_compress_dictionary(void)
 void write_compress_dictionary(FILE *output)
 {
   fwrite(&compress_dictionary_size, sizeof(uint16_t), 1, output);
-  for (int i = 0; i < compress_dictionary_size; ++i) {
+  for (uint32_t i = 0; i < compress_dictionary_size; ++i) {
     fwrite(&compress_dictionary[i].length, sizeof(uint16_t), 1, output);
     fwrite(compress_dictionary[i].data, sizeof(uint8_t), compress_dictionary[i].length, output);
   }
@@ -240,6 +245,8 @@ void write_compress_dictionary(FILE *output)
 
 void write_compress_data(FILE *input, FILE *output, uint16_t *new_dictionary_indexes)
 {
+  rewind(input);
+
   // TODO: should change dictionary indexes
   int16_t ch;
   while ((ch = getc(input)) != EOF) {
@@ -254,29 +261,16 @@ void compress(FILE *input, FILE *output)
 
   perform_compression(input, tmp);
 
-  uint16_t *new_dictionary_indexes = malloc(compress_dictionary_size * sizeof(uint16_t));
-  for (uint32_t new_i = 0, i = 0; i < compress_dictionary_size; ++i) {
-    if (compress_dictionary[i].used) { new_dictionary_indexes[i] = new_i++; }
+  {
+    uint16_t *new_dictionary_indexes = malloc(compress_dictionary_size * sizeof(uint16_t));
+
+    optimize_compress_dictionary(new_dictionary_indexes);
+    write_compress_dictionary(output);
+    write_compress_data(tmp, output, new_dictionary_indexes);
+
+    free(new_dictionary_indexes);
   }
 
-  optimize_compress_dictionary();
-  write_compress_dictionary(output);
-  write_compress_data(tmp, output, new_dictionary_indexes);
-
-  free(new_dictionary_indexes);
   fclose(tmp);
   delete_compress_dictionary();
-}
-
-// TODO: this function needs for debug only
-void print_compress_dictionary()
-{
-  printf("cds = %d\n", compress_dictionary_size);
-  for (int j = 0; j < compress_dictionary_size; ++j) {
-    printf("used = %d\tlength = %d\t data = ", compress_dictionary[j].used, compress_dictionary[j].length);
-    for (int l = 0; l < compress_dictionary[j].length; ++l) {
-      putc(compress_dictionary[j].data[l], stdout);
-    }
-    puts("");
-  }
 }
