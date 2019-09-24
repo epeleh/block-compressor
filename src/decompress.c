@@ -9,6 +9,7 @@ typedef struct decompress_dictionary_item_t {
 
 // ================================================================================ external functions
 
+// TODO: you can change some putc to fwrite
 void decompress(FILE *input, FILE *output);
 
 // ================================================================================ internal functions
@@ -245,6 +246,7 @@ void jumping_segment(uint8_t lower_half, FILE *input, FILE *output)
 
 void create_decompress_dictionary(FILE *input)
 {
+  // TODO: there is a bug
   decompress_dictionary_size = (getc(input) & 0x0F) << 8;
   decompress_dictionary_size += getc(input);
   decompress_dictionary = malloc(decompress_dictionary_size * sizeof(decompress_dictionary_item));
