@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,7 +6,7 @@
 typedef struct compress_dictionary_item_t {
   uint8_t *data;
   uint16_t length;
-  uint32_t use_count;
+  bool used;
 } compress_dictionary_item;
 
 // ================================================================================ external functions
@@ -174,7 +175,7 @@ void create_compress_dictionary(FILE *input)
           compress_dictionary[cdi].data[j] = parts[parts_i][j];
         }
 
-        compress_dictionary[cdi].use_count = 0;
+        compress_dictionary[cdi].used = false;
         free(parts[parts_i++]);
       }
     }
@@ -202,19 +203,8 @@ void delete_compress_dictionary(void)
 void compress(FILE *input, FILE *output)
 {
   create_compress_dictionary(input);
+  FILE *tmp = tmpfile();
 
-  // ============================================ DEBUG
-  printf("cds = %d\n", compress_dictionary_size);
-  for (int j = 0; j < compress_dictionary_size; ++j) {
-    printf("use_cout = %d\tlength = %d\t data = ", compress_dictionary[j].use_count, compress_dictionary[j].length);
-    for (int l = 0; l < compress_dictionary[j].length; ++l) {
-      putc(compress_dictionary[j].data[l], stdout);
-    }
-    puts("");
-  }
-  // ============================================
-
-  // FILE *tmp = tmpfile();
   // super_func(input, tmp);
 
   // uint16_t *new_dictionary_indexes = optimize_compress_dictionary();
@@ -223,7 +213,20 @@ void compress(FILE *input, FILE *output)
   // write_compress_data(tmp, output, new_dictionary_indexes);
 
   // free(new_dictionary_indexes);
-  // fclose(tmp);
 
+  fclose(tmp);
   delete_compress_dictionary();
+}
+
+// TODO: this function needs for debug only
+void print_compress_dictionary()
+{
+  printf("cds = %d\n", compress_dictionary_size);
+  for (int j = 0; j < compress_dictionary_size; ++j) {
+    printf("used = %d\tlength = %d\t data = ", compress_dictionary[j].used, compress_dictionary[j].length);
+    for (int l = 0; l < compress_dictionary[j].length; ++l) {
+      putc(compress_dictionary[j].data[l], stdout);
+    }
+    puts("");
+  }
 }
