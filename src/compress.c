@@ -28,11 +28,34 @@ typedef struct compress_dictionary_item_t {
   bool used;
 } compress_dictionary_item;
 
+typedef struct compress_option_t {
+  enum function_number fn;
+  uint32_t offset;
+  uint8_t *data;
+  uint32_t length;
+  uint32_t coverage;
+} compress_option;
+
 // ================================================================================ external functions
 
 void compress(FILE *input, FILE *output);
 
 // ================================================================================ internal functions
+
+static compress_option check_repeat_byte(FILE *input, uint32_t coverage_limit);
+static compress_option check_repeat_byte_long(FILE *input, uint32_t coverage_limit);
+static compress_option check_repeat_string(FILE *input, uint32_t coverage_limit);
+static compress_option check_repeat_string_long(FILE *input, uint32_t coverage_limit);
+static compress_option check_mirror_string(FILE *input, uint32_t coverage_limit);
+static compress_option check_dictionary(FILE *input, uint32_t coverage_limit);
+static compress_option check_one_particular_byte(FILE *input, uint32_t coverage_limit);
+static compress_option check_arithmetic_progression(FILE *input, uint32_t coverage_limit);
+static compress_option check_geometric_progression(FILE *input, uint32_t coverage_limit);
+static compress_option check_fibonacci_progression(FILE *input, uint32_t coverage_limit);
+static compress_option check_shift_left(FILE *input, uint32_t coverage_limit);
+static compress_option check_shift_right(FILE *input, uint32_t coverage_limit);
+static compress_option check_offset_segment(FILE *input, uint32_t coverage_limit);
+static compress_option check_jumping_segment(FILE *input, uint32_t coverage_limit);
 
 static void perform_compression(FILE *input, FILE *output);
 
@@ -50,12 +73,135 @@ static const uint32_t CD_ITEM_LENGTH_LIMIT = 4;
 static compress_dictionary_item *compress_dictionary = NULL;
 static uint16_t compress_dictionary_size = 0;
 
+static compress_option (*const CHECK_FUNCTIONS[])(FILE *, uint32_t) = {
+  check_repeat_byte,
+  check_repeat_byte_long,
+  check_repeat_string,
+  check_repeat_string_long,
+  check_mirror_string,
+  check_dictionary,
+  check_one_particular_byte,
+  check_arithmetic_progression,
+  check_geometric_progression,
+  check_fibonacci_progression,
+  check_shift_left,
+  check_shift_right,
+  check_offset_segment,
+  check_jumping_segment,
+};
+
 // ================================================================================ definitions
+
+compress_option check_repeat_byte(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_repeat_byte_long(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_repeat_string(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_repeat_string_long(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_mirror_string(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_dictionary(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_one_particular_byte(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_arithmetic_progression(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_geometric_progression(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_fibonacci_progression(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_shift_left(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_shift_right(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_offset_segment(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
+
+compress_option check_jumping_segment(FILE *input, uint32_t coverage_limit)
+{
+  compress_option co = {0};
+  return co;
+}
 
 void perform_compression(FILE *input, FILE *output)
 {
+  fseek(input, 0, SEEK_END);
+  uint32_t profit_limit = ftell(input) / 8;
   rewind(input);
-  // TODO
+
+  uint32_t options_capacity = 256;
+  compress_option *options = malloc(options_capacity * sizeof(compress_option));
+  uint32_t options_i = 0;
+
+  int16_t ch;
+  while ((ch = getc(input)) != EOF) {
+    for (uint16_t i = 2; i < 0x10; ++i) {
+      int32_t offset = ftell(input);
+
+      compress_option co = CHECK_FUNCTIONS[i](input, 0);
+      co.offset = offset;
+
+      if (co.fn && co.coverage / co.length > profit_limit) {
+      }
+
+      fseek(input, offset, SEEK_SET);
+    }
+  }
+
+  free(options);
 }
 
 int32_t parts_compare(const void *a, const void *b)
@@ -106,7 +252,7 @@ void create_compress_dictionary(FILE *input)
       do {
         ch = getc(input);
         if (ch != i && ch != EOF) { continue; }
-        if (ch != EOF) { fseek(input, -1, SEEK_CUR); }
+        if (ch != EOF) { ungetc(ch, input); }
 
         int32_t length = ftell(input) - last_ch_offset;
         parts[parts_i] = malloc((length + 1) * sizeof(int16_t));
