@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     if (options.decompress) {
       if (input_pathname_length < strlen(APP_NAME) + 2 ||
           strcmp(argv[i] + input_pathname_length - strlen(APP_NAME) - 1, "." APP_NAME)) {
-        if (!options.quiet) { printf(APP_NAME ": '%s' unknown suffix\n", argv[i]); }
+        if (!options.quiet) { printf(APP_NAME ": '%s' has unknown suffix\n", argv[i]); }
         fclose(input);
         continue;
       }
