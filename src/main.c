@@ -4,7 +4,7 @@
 #include <string.h>
 
 #define APP_NAME "bc"
-#define MAGIC_HEADER 0xB290
+#define MAGIC_HEADER 0xB209
 
 extern void compress(FILE *input, FILE *output);
 extern void decompress(FILE *input, FILE *output);
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
     }
   }
 
-  if (options.help) {
+  if (options.help || argc < 2) {
     print_help();
     return 0;
   }
@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
       memcpy(output_pathname, argv[i], input_pathname_length + 1);
       strncat(output_pathname, "." APP_NAME, strlen(APP_NAME) + 1);
 
+      // TODO: add --force
       output = options.stdout ? stdout : fopen(output_pathname, "wb+");
       if (!output) {
         if (!options.quiet) { printf(APP_NAME ": '%s' can't open output stream\n", argv[i]); }

@@ -292,12 +292,18 @@ void delete_decompress_dictionary(void)
 
 void decompress(FILE *input, FILE *output)
 {
-  create_decompress_dictionary(input);
-
+  fseek(input, 2, SEEK_SET);
   int16_t ch;
   while ((ch = getc(input)) != EOF) {
-    DECOMPRESS_FUNCTIONS[ch >> 4](ch & 0x0F, input, output);
+    putc(ch, output);
   }
 
-  delete_decompress_dictionary();
+  // create_decompress_dictionary(input);
+
+  // int16_t ch;
+  // while ((ch = getc(input)) != EOF) {
+  //   DECOMPRESS_FUNCTIONS[ch >> 4](ch & 0x0F, input, output);
+  // }
+
+  // delete_decompress_dictionary();
 }

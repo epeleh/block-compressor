@@ -1,3 +1,5 @@
+.PHONY: clean format test
+
 CFLAGS=-Wall -O0 -g3
 SOURCE_DIR=src
 TARGET_DIR=target
@@ -25,3 +27,7 @@ format:
 		$(HEADERS) $(SOURCES) --
 
 	clang-format -i $(HEADERS) $(SOURCES)
+
+test:
+	$(MAKE)
+	ruby -I.:test -e "ARGV.each { |f| require f }" test/*_test.rb

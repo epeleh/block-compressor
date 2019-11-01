@@ -178,30 +178,31 @@ compress_option check_jumping_segment(FILE *input, uint32_t coverage_limit)
 
 void perform_compression(FILE *input, FILE *output)
 {
-  fseek(input, 0, SEEK_END);
-  uint32_t profit_limit = ftell(input) / 8;
-  rewind(input);
+  // TODO
+  // fseek(input, 0, SEEK_END);
+  // uint32_t profit_limit = ftell(input) / 8;
+  // rewind(input);
 
-  uint32_t options_capacity = 256;
-  compress_option *options = malloc(options_capacity * sizeof(compress_option));
-  uint32_t options_i = 0;
+  // uint32_t options_capacity = 256;
+  // compress_option *options = malloc(options_capacity * sizeof(compress_option));
+  // uint32_t options_i = 0;
 
-  int16_t ch;
-  while ((ch = getc(input)) != EOF) {
-    for (uint16_t i = 2; i < 0x10; ++i) {
-      int32_t offset = ftell(input);
+  // int16_t ch;
+  // while ((ch = getc(input)) != EOF) {
+  //   for (uint16_t i = 2; i < 0x10; ++i) {
+  //     int32_t offset = ftell(input);
 
-      compress_option co = CHECK_FUNCTIONS[i](input, 0);
-      co.offset = offset;
+  //     compress_option co = CHECK_FUNCTIONS[i](input, 0);
+  //     co.offset = offset;
 
-      if (co.fn && co.coverage / co.length > profit_limit) {
-      }
+  //     if (co.fn && co.coverage / co.length > profit_limit) {
+  //     }
 
-      fseek(input, offset, SEEK_SET);
-    }
-  }
+  //     fseek(input, offset, SEEK_SET);
+  //   }
+  // }
 
-  free(options);
+  // free(options);
 }
 
 int32_t parts_compare(const void *a, const void *b)
@@ -382,7 +383,9 @@ void delete_compress_dictionary(void)
 
 void write_compress_dictionary(FILE *output)
 {
-  fwrite(&compress_dictionary_size, sizeof(uint16_t), 1, output);
+  putc(0xB2, output); // write first MAGIC_HEADER part
+  uint16_t cds_with_second_magic_header_part = (444 << 4) + 0x9;
+  fwrite(&cds_with_second_magic_header_part, sizeof(uint16_t), 1, output);
   for (uint32_t i = 0; i < compress_dictionary_size; ++i) {
     fwrite(&compress_dictionary[i].length, sizeof(uint16_t), 1, output);
     fwrite(compress_dictionary[i].data, sizeof(uint8_t), compress_dictionary[i].length, output);
