@@ -1,4 +1,6 @@
+#include <ctype.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +42,14 @@ static void print_help(void)
 static void print_version(void)
 {
   puts(APP_NAME " 1.0");
+}
+
+static bool file_exist(const char *filepath)
+{
+  FILE *file = fopen(filepath, "rb");
+  if (!file) { return false; }
+  fclose(file);
+  return true;
 }
 
 int main(int argc, char *argv[])
@@ -141,6 +151,25 @@ int main(int argc, char *argv[])
       memcpy(output_pathname, argv[i], output_pathname_length);
       output_pathname[output_pathname_length] = '\0';
 
+      // TODO: this piece of code is duplicated below
+      // ==========================================================================================
+      if (!options.force && !options.stdout && file_exist(output_pathname)) {
+        printf(APP_NAME ": '%s' already exists; do you want to overwrite (y/N)? ", output_pathname);
+        int16_t ch = getchar();
+
+        int16_t c = ch;
+        while (c != EOF && c != '\n') {
+          c = getchar();
+        }
+
+        if (tolower(ch) != 'y') {
+          puts("\tnot overwritten");
+          fclose(input);
+          free(output_pathname);
+          continue;
+        }
+      }
+
       output = options.stdout ? stdout : fopen(output_pathname, "wb+");
       if (!output) {
         if (!options.quiet) { printf(APP_NAME ": '%s' can't open output stream\n", argv[i]); }
@@ -148,6 +177,7 @@ int main(int argc, char *argv[])
         free(output_pathname);
         continue;
       }
+      // ==========================================================================================
 
       rewind(input);
       decompress(input, output);
@@ -164,7 +194,25 @@ int main(int argc, char *argv[])
       memcpy(output_pathname, argv[i], input_pathname_length + 1);
       strncat(output_pathname, "." APP_NAME, strlen(APP_NAME) + 1);
 
-      // TODO: add --force
+      // TODO: this piece of code is duplicated above
+      // ==========================================================================================
+      if (!options.force && !options.stdout && file_exist(output_pathname)) {
+        printf(APP_NAME ": '%s' already exists; do you want to overwrite (y/N)? ", output_pathname);
+        int16_t ch = getchar();
+
+        int16_t c = ch;
+        while (c != EOF && c != '\n') {
+          c = getchar();
+        }
+
+        if (tolower(ch) != 'y') {
+          puts("\tnot overwritten");
+          fclose(input);
+          free(output_pathname);
+          continue;
+        }
+      }
+
       output = options.stdout ? stdout : fopen(output_pathname, "wb+");
       if (!output) {
         if (!options.quiet) { printf(APP_NAME ": '%s' can't open output stream\n", argv[i]); }
@@ -172,6 +220,7 @@ int main(int argc, char *argv[])
         free(output_pathname);
         continue;
       }
+      // ==========================================================================================
 
       compress(input, output);
     }
