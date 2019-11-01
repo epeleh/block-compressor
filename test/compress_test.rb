@@ -4,7 +4,7 @@ require_relative 'global'
 
 class CompressTest < Test::Unit::TestCase
   def test_compress
-    tmp = Tempfile.new.tap { |x| x.write('Hello world!') }.tap(&:close).path
+    tmp = Tempfile.new.tap { |x| x.write('Hello world!' * 2) }.tap(&:close).path
 
     assert_false File.exist?(tmp + '.' + APP_NAME)
     assert_equal 0, `#{EXEC} #{tmp}; printf $?`.to_i

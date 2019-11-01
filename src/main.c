@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
         continue;
       }
 
-      if (getc(input) != (MAGIC_HEADER >> 8) || (getc(input) & 0xF0) != (MAGIC_HEADER & 0xFF)) {
+      if (getc(input) != (MAGIC_HEADER >> 8) || (getc(input) & 0xF) != (MAGIC_HEADER & 0xFF)) {
         if (!options.quiet) { printf(APP_NAME ": '%s' not in %s format\n", argv[i], APP_NAME); }
         fclose(input);
         continue;
