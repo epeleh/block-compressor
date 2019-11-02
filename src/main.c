@@ -52,6 +52,7 @@ static bool file_exist(const char *filepath)
   return true;
 }
 
+// TODO: add tests and then refactor
 int main(int argc, char *argv[])
 {
   command_line_options options = {0};
@@ -230,7 +231,7 @@ int main(int argc, char *argv[])
       fseek(output, 0, SEEK_END);
 
       double diff;
-      if (ftell(input) > ftell(output)) {
+      if (options.decompress) {
         diff = (double)ftell(input) / ftell(output);
       } else {
         diff = (double)ftell(output) / ftell(input);
