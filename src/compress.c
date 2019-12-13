@@ -57,6 +57,7 @@ static compress_option check_shift_right(FILE *input, uint32_t coverage_limit);
 static compress_option check_offset_segment(FILE *input, uint32_t coverage_limit);
 static compress_option check_jumping_segment(FILE *input, uint32_t coverage_limit);
 
+static int32_t options_compare(const void *a, const void *b);
 static void perform_compression(FILE *input, FILE *output);
 
 static int32_t parts_compare(const void *a, const void *b);
@@ -69,11 +70,15 @@ static void write_compress_data(FILE *input, FILE *output, uint16_t *new_diction
 
 // ================================================================================ internal variables
 
+static compress_option next_comparison_option = {0};
+
 static const uint32_t CD_ITEM_LENGTH_LIMIT = 4;
 static compress_dictionary_item *compress_dictionary = NULL;
 static uint16_t compress_dictionary_size = 0;
 
 static compress_option (*const CHECK_FUNCTIONS[])(FILE *, uint32_t) = {
+  NULL,
+  NULL,
   check_repeat_byte,
   check_repeat_byte_long,
   check_repeat_string,
@@ -94,7 +99,20 @@ static compress_option (*const CHECK_FUNCTIONS[])(FILE *, uint32_t) = {
 
 compress_option check_repeat_byte(FILE *input, uint32_t coverage_limit)
 {
-  compress_option co = {0};
+  coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
+
+  fseek(input, -1, SEEK_CUR);
+  uint8_t ch = getc(input);
+
+  uint32_t i = 0;
+  while (getc(input) == ch && i < coverage_limit) {
+    i++;
+  }
+
+  if (!i) { return (compress_option){0}; }
+
+  compress_option co = {FN_REPEAT_BYTE, 0, malloc(1 * sizeof(uint8_t)), 1, i};
+  *co.data = i - 1 + (FN_REPEAT_BYTE << 4);
   return co;
 }
 
@@ -176,39 +194,112 @@ compress_option check_jumping_segment(FILE *input, uint32_t coverage_limit)
   return co;
 }
 
+int32_t options_compare(const void *a, const void *b)
+{
+  compress_option av = *(compress_option *)a;
+  compress_option bv = *(compress_option *)b;
+  if (bv.offset > av.offset) { next_comparison_option = bv; }
+  return av.offset - bv.offset;
+}
+
 void perform_compression(FILE *input, FILE *output)
 {
-  // TODO
-  // fseek(input, 0, SEEK_END);
-  // uint32_t profit_limit = ftell(input) / 8;
-  // rewind(input);
+  fseek(input, 0, SEEK_END);
+  uint32_t input_length = ftell(input);
+  double profit_limit = (double)input_length / 8;
+  rewind(input);
 
-  // uint32_t options_capacity = 256;
-  // compress_option *options = malloc(options_capacity * sizeof(compress_option));
-  // uint32_t options_i = 0;
+  uint32_t options_capacity = 256;
+  compress_option *options = malloc(options_capacity * sizeof(compress_option));
+  uint32_t options_size = 0;
 
-  // int16_t ch;
-  // while ((ch = getc(input)) != EOF) {
-  //   for (uint16_t i = 2; i < 0x10; ++i) {
-  //     int32_t offset = ftell(input);
+  while (profit_limit > 1) {
+    int16_t ch;
+    uint32_t current_options_size = options_size;
+    while ((ch = getc(input)) != EOF) {
+      int32_t offset = ftell(input);
+      uint32_t coverage_limit = input_length - offset;
 
-  //     compress_option co = CHECK_FUNCTIONS[i](input, 0);
-  //     co.offset = offset;
+      next_comparison_option.fn = 0;
+      compress_option key_option = {.offset = offset};
+      compress_option *found_option = bsearch(&key_option, options, current_options_size, sizeof(compress_option), options_compare);
 
-  //     if (co.fn && co.coverage / co.length > profit_limit) {
-  //     }
+      if (found_option) {
+        fseek(input, found_option->coverage, SEEK_CUR);
+        continue;
+      }
 
-  //     fseek(input, offset, SEEK_SET);
-  //   }
-  // }
+      if (next_comparison_option.fn) {
+        coverage_limit = next_comparison_option.offset - offset;
+      }
 
-  // free(options);
+      for (uint8_t i = 2; i < 0x10; ++i) {
+        compress_option co = CHECK_FUNCTIONS[i](input, coverage_limit);
+
+        if (co.fn && co.coverage / co.length > profit_limit) {
+          co.offset = offset;
+          options[options_size++] = co;
+          if (options_size >= options_capacity) {
+            options_capacity *= 2;
+            options = realloc(options, options_capacity * sizeof(compress_option));
+          }
+
+          fseek(input, offset + co.coverage, SEEK_SET);
+          break;
+        }
+
+        free(co.data);
+        fseek(input, offset, SEEK_SET);
+      }
+    }
+
+    qsort(options, options_size, sizeof(compress_option), options_compare);
+    rewind(input);
+    profit_limit /= 2;
+  }
+
+  fseek(input, 0, SEEK_END);
+  options[options_size++] = (compress_option){.fn = FN_SKIP, .offset = ftell(input)};
+  rewind(input);
+
+  for (uint32_t i = 0; i < options_size; ++i) {
+    uint16_t skip_length = options[i].offset - ftell(input);
+
+    if (skip_length) {
+      if (skip_length > 16) {
+        uint16_t skip_length_buff = skip_length - 1 + (FN_SKIP_LONG << 4);
+        fwrite(&skip_length_buff, sizeof(uint16_t), 1, output);
+      } else {
+        putc(skip_length - 1 + (FN_SKIP << 4), output);
+      }
+
+      while (skip_length--) {
+        putc(getc(input), output);
+      }
+    }
+
+    if (!options[i].fn) { continue; }
+
+    // TODO: lines below just for debug
+    printf("options[%d].fn = %d\n", i, options[i].fn);
+    printf("options[%d].offset = %d\n", i, options[i].offset);
+    printf("options[%d].data = %p\n", i, options[i].data);
+    printf("*options[%d].data = %x\n", i, *options[i].data);
+    printf("options[%d].length = %d\n", i, options[i].length);
+    printf("options[%d].coverage = %d\n\n", i, options[i].coverage);
+
+    fwrite(options[i].data, sizeof(uint8_t), options[i].length, output);
+    free(options[i].data);
+    fseek(input, options[i].coverage, SEEK_CUR);
+  }
+
+  free(options);
 }
 
 int32_t parts_compare(const void *a, const void *b)
 {
-  const int16_t *av = *(int16_t **)a;
-  const int16_t *bv = *(int16_t **)b;
+  int16_t *av = *(int16_t **)a;
+  int16_t *bv = *(int16_t **)b;
 
   uint32_t min_length = 0;
   while (av[min_length] != EOF && bv[min_length] != EOF) {
