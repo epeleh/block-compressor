@@ -247,7 +247,7 @@ void create_decompress_dictionary(FILE *input)
 
   decompress_dictionary = calloc(decompress_dictionary_size, sizeof(decompress_dictionary_item));
 
-  FILE *tmp = tmpfile();
+  FILE *const tmp = tmpfile();
   decompress_dictionary_item item;
   for (u16 i = 0; i < decompress_dictionary_size; ++i) {
     fread(&item.length, sizeof(u16), 1, input);

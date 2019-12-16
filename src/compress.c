@@ -1,5 +1,4 @@
-#include <stdbool.h>
-#include <stdint.h>
+#include "types.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -23,17 +22,17 @@ enum function_number {
 };
 
 typedef struct compress_dictionary_item_t {
-  uint8_t *data;
-  uint16_t length;
+  u8 *data;
+  u16 length;
   bool used;
 } compress_dictionary_item;
 
 typedef struct compress_option_t {
   enum function_number fn;
-  uint32_t offset;
-  uint8_t *data;
-  uint32_t length;
-  uint32_t coverage;
+  u32 offset;
+  u8 *data;
+  u32 length;
+  u32 coverage;
 } compress_option;
 
 // ================================================================================ external functions
@@ -42,41 +41,41 @@ void compress(FILE *input, FILE *output);
 
 // ================================================================================ internal functions
 
-static compress_option check_repeat_byte(FILE *input, uint32_t coverage_limit);
-static compress_option check_repeat_byte_long(FILE *input, uint32_t coverage_limit);
-static compress_option check_repeat_string(FILE *input, uint32_t coverage_limit);
-static compress_option check_repeat_string_long(FILE *input, uint32_t coverage_limit);
-static compress_option check_mirror_string(FILE *input, uint32_t coverage_limit);
-static compress_option check_dictionary(FILE *input, uint32_t coverage_limit);
-static compress_option check_one_particular_byte(FILE *input, uint32_t coverage_limit);
-static compress_option check_arithmetic_progression(FILE *input, uint32_t coverage_limit);
-static compress_option check_geometric_progression(FILE *input, uint32_t coverage_limit);
-static compress_option check_fibonacci_progression(FILE *input, uint32_t coverage_limit);
-static compress_option check_shift_left(FILE *input, uint32_t coverage_limit);
-static compress_option check_shift_right(FILE *input, uint32_t coverage_limit);
-static compress_option check_offset_segment(FILE *input, uint32_t coverage_limit);
-static compress_option check_jumping_segment(FILE *input, uint32_t coverage_limit);
+static compress_option check_repeat_byte(FILE *input, u32 coverage_limit);
+static compress_option check_repeat_byte_long(FILE *input, u32 coverage_limit);
+static compress_option check_repeat_string(FILE *input, u32 coverage_limit);
+static compress_option check_repeat_string_long(FILE *input, u32 coverage_limit);
+static compress_option check_mirror_string(FILE *input, u32 coverage_limit);
+static compress_option check_dictionary(FILE *input, u32 coverage_limit);
+static compress_option check_one_particular_byte(FILE *input, u32 coverage_limit);
+static compress_option check_arithmetic_progression(FILE *input, u32 coverage_limit);
+static compress_option check_geometric_progression(FILE *input, u32 coverage_limit);
+static compress_option check_fibonacci_progression(FILE *input, u32 coverage_limit);
+static compress_option check_shift_left(FILE *input, u32 coverage_limit);
+static compress_option check_shift_right(FILE *input, u32 coverage_limit);
+static compress_option check_offset_segment(FILE *input, u32 coverage_limit);
+static compress_option check_jumping_segment(FILE *input, u32 coverage_limit);
 
-static int32_t options_compare(const void *a, const void *b);
+static i32 options_compare(const void *a, const void *b);
 static void perform_compression(FILE *input, FILE *output);
 
-static int32_t parts_compare(const void *a, const void *b);
+static i32 parts_compare(const void *a, const void *b);
 static void create_compress_dictionary(FILE *input);
-static void optimize_compress_dictionary(uint16_t *new_dictionary_indexes);
+static void optimize_compress_dictionary(const u16 *new_dictionary_indexes);
 static void delete_compress_dictionary(void);
 
 static void write_compress_dictionary(FILE *output);
-static void write_compress_data(FILE *input, FILE *output, uint16_t *new_dictionary_indexes);
+static void write_compress_data(FILE *input, FILE *output, const u16 *new_dictionary_indexes);
 
 // ================================================================================ internal variables
 
 static compress_option next_comparison_option = {0};
 
-static const uint32_t CD_ITEM_LENGTH_LIMIT = 4;
+static const u32 CD_ITEM_LENGTH_LIMIT = 4;
 static compress_dictionary_item *compress_dictionary = NULL;
-static uint16_t compress_dictionary_size = 0;
+static u16 compress_dictionary_size = 0;
 
-static compress_option (*const CHECK_FUNCTIONS[])(FILE *, uint32_t) = {
+static compress_option (*const CHECK_FUNCTIONS[])(FILE *, u32) = {
   NULL,
   NULL,
   check_repeat_byte,
@@ -97,107 +96,121 @@ static compress_option (*const CHECK_FUNCTIONS[])(FILE *, uint32_t) = {
 
 // ================================================================================ definitions
 
-compress_option check_repeat_byte(FILE *input, uint32_t coverage_limit)
+compress_option check_repeat_byte(FILE *input, u32 coverage_limit)
 {
   coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
 
   fseek(input, -1, SEEK_CUR);
-  uint8_t ch = getc(input);
+  const u8 ch = getc(input);
 
-  uint32_t i = 0;
+  u32 i = 0;
   while (getc(input) == ch && i < coverage_limit) {
     i++;
   }
 
   if (!i) { return (compress_option){0}; }
 
-  compress_option co = {FN_REPEAT_BYTE, 0, malloc(1 * sizeof(uint8_t)), 1, i};
+  const compress_option co = {FN_REPEAT_BYTE, 0, malloc(1 * sizeof(u8)), 1, i};
   *co.data = ((i - 1) << 4) + FN_REPEAT_BYTE;
   return co;
 }
 
-compress_option check_repeat_byte_long(FILE *input, uint32_t coverage_limit)
+compress_option check_repeat_byte_long(FILE *input, u32 coverage_limit)
+{
+  coverage_limit = coverage_limit > 4096 ? 4096 : coverage_limit;
+
+  fseek(input, -1, SEEK_CUR);
+  const u8 ch = getc(input);
+
+  u32 i = 0;
+  while (getc(input) == ch && i < coverage_limit) {
+    i++;
+  }
+
+  if (!i) { return (compress_option){0}; }
+
+  const compress_option co = {FN_REPEAT_BYTE_LONG, 0, malloc(2 * sizeof(u8)), 2, i};
+  co.data[0] = ((i - 1) << 4) + FN_REPEAT_BYTE_LONG;
+  co.data[1] = (i - 1) >> 4;
+  return co;
+}
+
+compress_option check_repeat_string(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_repeat_string(FILE *input, uint32_t coverage_limit)
+compress_option check_repeat_string_long(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_repeat_string_long(FILE *input, uint32_t coverage_limit)
+compress_option check_mirror_string(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_mirror_string(FILE *input, uint32_t coverage_limit)
+compress_option check_dictionary(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_dictionary(FILE *input, uint32_t coverage_limit)
+compress_option check_one_particular_byte(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_one_particular_byte(FILE *input, uint32_t coverage_limit)
+compress_option check_arithmetic_progression(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_arithmetic_progression(FILE *input, uint32_t coverage_limit)
+compress_option check_geometric_progression(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_geometric_progression(FILE *input, uint32_t coverage_limit)
+compress_option check_fibonacci_progression(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_fibonacci_progression(FILE *input, uint32_t coverage_limit)
+compress_option check_shift_left(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_shift_left(FILE *input, uint32_t coverage_limit)
+compress_option check_shift_right(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_shift_right(FILE *input, uint32_t coverage_limit)
+compress_option check_offset_segment(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_offset_segment(FILE *input, uint32_t coverage_limit)
+compress_option check_jumping_segment(FILE *input, u32 coverage_limit)
 {
   compress_option co = {0};
   return co;
 }
 
-compress_option check_jumping_segment(FILE *input, uint32_t coverage_limit)
+i32 options_compare(const void *a, const void *b)
 {
-  compress_option co = {0};
-  return co;
-}
-
-int32_t options_compare(const void *a, const void *b)
-{
-  compress_option av = *(compress_option *)a;
-  compress_option bv = *(compress_option *)b;
+  const compress_option av = *(compress_option *)a;
+  const compress_option bv = *(compress_option *)b;
   if (bv.offset > av.offset) { next_comparison_option = bv; }
   return av.offset - bv.offset;
 }
@@ -205,20 +218,20 @@ int32_t options_compare(const void *a, const void *b)
 void perform_compression(FILE *input, FILE *output)
 {
   fseek(input, 0, SEEK_END);
-  uint32_t input_length = ftell(input);
+  const u32 input_length = ftell(input);
   double profit_limit = (double)input_length / 8;
   rewind(input);
 
-  uint32_t options_capacity = 256;
+  u32 options_capacity = 256;
   compress_option *options = malloc(options_capacity * sizeof(compress_option));
-  uint32_t options_size = 0;
+  u32 options_size = 0;
 
   while (profit_limit > 1) {
-    int16_t ch;
-    uint32_t current_options_size = options_size;
+    i16 ch;
+    const u32 current_options_size = options_size;
     while ((ch = getc(input)) != EOF) {
-      int32_t offset = ftell(input);
-      uint32_t coverage_limit = input_length - offset;
+      i32 offset = ftell(input);
+      u32 coverage_limit = input_length - offset;
 
       next_comparison_option.fn = 0;
       compress_option key_option = {.offset = offset};
@@ -233,24 +246,39 @@ void perform_compression(FILE *input, FILE *output)
         coverage_limit = next_comparison_option.offset - offset;
       }
 
-      for (uint8_t i = 2; i < 0x10; ++i) {
-        compress_option co = CHECK_FUNCTIONS[i](input, coverage_limit);
+      compress_option best_co = {.length = 1};
+      for (u8 i = 2; i < 0x10; ++i) {
+        fseek(input, offset, SEEK_SET);
 
-        if (co.fn && co.coverage / co.length > profit_limit) {
-          co.offset = offset;
-          options[options_size++] = co;
-          if (options_size >= options_capacity) {
-            options_capacity *= 2;
-            options = realloc(options, options_capacity * sizeof(compress_option));
-          }
+        const compress_option co = CHECK_FUNCTIONS[i](input, coverage_limit);
+        if (!co.fn) { continue; }
 
-          fseek(input, offset + co.coverage, SEEK_SET);
-          break;
+        const double co_profit = (double)co.coverage / co.length;
+        if (co_profit < profit_limit) {
+          free(co.data);
+          continue;
+        }
+
+        const double best_co_profit = (double)best_co.coverage / best_co.length;
+        if (co_profit > best_co_profit) {
+          free(best_co.data);
+          best_co = co;
+          continue;
         }
 
         free(co.data);
-        fseek(input, offset, SEEK_SET);
       }
+
+      if (best_co.fn) {
+        best_co.offset = offset;
+        options[options_size++] = best_co;
+        if (options_size >= options_capacity) {
+          options_capacity *= 2;
+          options = realloc(options, options_capacity * sizeof(compress_option));
+        }
+      }
+
+      fseek(input, offset + best_co.coverage, SEEK_SET);
     }
 
     qsort(options, options_size, sizeof(compress_option), options_compare);
@@ -262,13 +290,13 @@ void perform_compression(FILE *input, FILE *output)
   options[options_size++] = (compress_option){.fn = FN_SKIP, .offset = ftell(input)};
   rewind(input);
 
-  for (uint32_t i = 0; i < options_size; ++i) {
-    uint16_t skip_length = options[i].offset - ftell(input);
+  for (u32 i = 0; i < options_size; ++i) {
+    u16 skip_length = options[i].offset - ftell(input);
 
     if (skip_length) {
       if (skip_length > 16) {
-        uint16_t skip_length_buff = ((skip_length - 1) << 4) + FN_SKIP_LONG;
-        fwrite(&skip_length_buff, sizeof(uint16_t), 1, output);
+        u16 skip_length_buff = ((skip_length - 1) << 4) + FN_SKIP_LONG;
+        fwrite(&skip_length_buff, sizeof(u16), 1, output);
       } else {
         putc(((skip_length - 1) << 4) + FN_SKIP, output);
       }
@@ -283,12 +311,14 @@ void perform_compression(FILE *input, FILE *output)
     // TODO: lines below just for debug
     printf("options[%d].fn = %d\n", i, options[i].fn);
     printf("options[%d].offset = %d\n", i, options[i].offset);
-    printf("options[%d].data = %p\n", i, options[i].data);
-    printf("*options[%d].data = %x\n", i, *options[i].data);
     printf("options[%d].length = %d\n", i, options[i].length);
     printf("options[%d].coverage = %d\n\n", i, options[i].coverage);
+    printf("options[%d].data = %p\n", i, options[i].data);
+    for (u32 j = 0; j < options[i].length; ++j) {
+      printf("options[%d].data[%d] = %x\n", i, j, options[i].data[j]);
+    }
 
-    fwrite(options[i].data, sizeof(uint8_t), options[i].length, output);
+    fwrite(options[i].data, sizeof(u8), options[i].length, output);
     free(options[i].data);
     fseek(input, options[i].coverage, SEEK_CUR);
   }
@@ -296,17 +326,17 @@ void perform_compression(FILE *input, FILE *output)
   free(options);
 }
 
-int32_t parts_compare(const void *a, const void *b)
+i32 parts_compare(const void *a, const void *b)
 {
-  int16_t *av = *(int16_t **)a;
-  int16_t *bv = *(int16_t **)b;
+  i16 *av = *(i16 **)a;
+  i16 *bv = *(i16 **)b;
 
-  uint32_t min_length = 0;
+  u32 min_length = 0;
   while (av[min_length] != EOF && bv[min_length] != EOF) {
     min_length++;
   }
 
-  for (uint32_t i = 0; i < min_length; ++i) {
+  for (u32 i = 0; i < min_length; ++i) {
     if (av[i] == bv[i]) { continue; }
     return av[i] - bv[i];
   }
@@ -316,11 +346,11 @@ int32_t parts_compare(const void *a, const void *b)
 
 void create_compress_dictionary(FILE *input)
 {
-  for (uint16_t i = 0; i < 256; ++i) {
-    uint32_t parts_count = 0;
+  for (u16 i = 0; i < 256; ++i) {
+    u32 parts_count = 0;
     {
       rewind(input);
-      int16_t ch;
+      i16 ch;
 
       while ((ch = getc(input)) != EOF) {
         if (ch == i) { parts_count++; }
@@ -329,29 +359,29 @@ void create_compress_dictionary(FILE *input)
 
     if (parts_count < 2) { continue; }
 
-    int16_t **parts = calloc(parts_count, sizeof(int16_t *));
+    i16 **parts = calloc(parts_count, sizeof(i16 *));
     {
       rewind(input);
-      int16_t ch;
+      i16 ch;
 
-      uint32_t last_ch_offset = 0;
+      u32 last_ch_offset = 0;
       while ((ch = getc(input)) != EOF) {
         if (ch == i) { break; }
         last_ch_offset++;
       }
 
-      uint32_t parts_i = 0;
+      u32 parts_i = 0;
       do {
         ch = getc(input);
         if (ch != i && ch != EOF) { continue; }
         if (ch != EOF) { ungetc(ch, input); }
 
-        int32_t length = ftell(input) - last_ch_offset;
-        parts[parts_i] = malloc((length + 1) * sizeof(int16_t));
+        i32 length = ftell(input) - last_ch_offset;
+        parts[parts_i] = malloc((length + 1) * sizeof(i16));
         parts[parts_i][length] = EOF;
 
         fseek(input, -length, SEEK_CUR);
-        for (uint32_t j = 0; j < length; ++j) {
+        for (u32 j = 0; j < length; ++j) {
           parts[parts_i][j] = getc(input);
         }
 
@@ -361,10 +391,10 @@ void create_compress_dictionary(FILE *input)
       } while (ch != EOF);
     }
 
-    qsort(parts, parts_count, sizeof(int16_t *), parts_compare);
+    qsort(parts, parts_count, sizeof(i16 *), parts_compare);
 
-    for (uint32_t parts_i = 1; parts_i < parts_count; ++parts_i) {
-      uint32_t length = 0;
+    for (u32 parts_i = 1; parts_i < parts_count; ++parts_i) {
+      u32 length = 0;
       while (parts[parts_i - 1][length] == parts[parts_i][length] && parts[parts_i][length] != EOF) {
         length++;
       }
@@ -376,19 +406,19 @@ void create_compress_dictionary(FILE *input)
       }
 
       if (parts[parts_i - 1][length] != EOF) {
-        parts[parts_i - 1] = realloc(parts[parts_i - 1], (length + 1) * sizeof(int16_t));
+        parts[parts_i - 1] = realloc(parts[parts_i - 1], (length + 1) * sizeof(i16));
         parts[parts_i - 1][length] = EOF;
       }
     }
 
-    uint32_t actual_parts_count = 0;
+    u32 actual_parts_count = 0;
     {
-      uint32_t parts_i = 0;
+      u32 parts_i = 0;
       while (parts[parts_i] == NULL) {
         parts_i++;
       }
 
-      uint32_t last_parts_i = parts_i++;
+      u32 last_parts_i = parts_i++;
       while (parts_i < parts_count) {
         actual_parts_count++;
 
@@ -396,7 +426,7 @@ void create_compress_dictionary(FILE *input)
           parts_i++;
         }
 
-        for (uint32_t j = 0; parts[last_parts_i][j] == parts[parts_i][j]; ++j) {
+        for (u32 j = 0; parts[last_parts_i][j] == parts[parts_i][j]; ++j) {
           if (parts[parts_i][j] != EOF) { continue; }
           actual_parts_count--;
           free(parts[last_parts_i]);
@@ -424,11 +454,11 @@ void create_compress_dictionary(FILE *input)
     }
 
     {
-      uint16_t cdi = compress_dictionary_size;
+      u16 cdi = compress_dictionary_size;
       compress_dictionary_size += actual_parts_count;
       compress_dictionary = realloc(compress_dictionary, compress_dictionary_size * sizeof(compress_dictionary_item));
 
-      for (uint32_t parts_i = 0; actual_parts_count--; ++cdi) {
+      for (u32 parts_i = 0; actual_parts_count--; ++cdi) {
         while (parts[parts_i] == NULL) {
           parts_i++;
         }
@@ -438,8 +468,8 @@ void create_compress_dictionary(FILE *input)
           compress_dictionary[cdi].length++;
         }
 
-        compress_dictionary[cdi].data = malloc(compress_dictionary[cdi].length * sizeof(uint8_t));
-        for (uint32_t j = 0; j < compress_dictionary[cdi].length; ++j) {
+        compress_dictionary[cdi].data = malloc(compress_dictionary[cdi].length * sizeof(u8));
+        for (u32 j = 0; j < compress_dictionary[cdi].length; ++j) {
           compress_dictionary[cdi].data[j] = parts[parts_i][j];
         }
 
@@ -452,7 +482,7 @@ void create_compress_dictionary(FILE *input)
   }
 }
 
-void optimize_compress_dictionary(uint16_t *new_dictionary_indexes)
+void optimize_compress_dictionary(const u16 *new_dictionary_indexes)
 {
   // TODO:
   // Compress compress_dictionary data
@@ -463,7 +493,7 @@ void optimize_compress_dictionary(uint16_t *new_dictionary_indexes)
 
 void delete_compress_dictionary(void)
 {
-  for (uint16_t i = 0; i < compress_dictionary_size; ++i) {
+  for (u16 i = 0; i < compress_dictionary_size; ++i) {
     free(compress_dictionary[i].data);
   }
 
@@ -475,20 +505,20 @@ void delete_compress_dictionary(void)
 void write_compress_dictionary(FILE *output)
 {
   putc(0xB2, output); // write first MAGIC_HEADER part
-  uint16_t cds_with_second_magic_header_part = (compress_dictionary_size << 4) + 0x9;
-  fwrite(&cds_with_second_magic_header_part, sizeof(uint16_t), 1, output);
-  for (uint32_t i = 0; i < compress_dictionary_size; ++i) {
-    fwrite(&compress_dictionary[i].length, sizeof(uint16_t), 1, output);
-    fwrite(compress_dictionary[i].data, sizeof(uint8_t), compress_dictionary[i].length, output);
+  u16 cds_with_second_magic_header_part = (compress_dictionary_size << 4) + 0x9;
+  fwrite(&cds_with_second_magic_header_part, sizeof(u16), 1, output);
+  for (u32 i = 0; i < compress_dictionary_size; ++i) {
+    fwrite(&compress_dictionary[i].length, sizeof(u16), 1, output);
+    fwrite(compress_dictionary[i].data, sizeof(u8), compress_dictionary[i].length, output);
   }
 }
 
-void write_compress_data(FILE *input, FILE *output, uint16_t *new_dictionary_indexes)
+void write_compress_data(FILE *input, FILE *output, const u16 *new_dictionary_indexes)
 {
   rewind(input);
 
   // TODO: should change dictionary indexes
-  int16_t ch;
+  i16 ch;
   while ((ch = getc(input)) != EOF) {
     putc(ch, output);
   }
@@ -497,12 +527,12 @@ void write_compress_data(FILE *input, FILE *output, uint16_t *new_dictionary_ind
 void compress(FILE *input, FILE *output)
 {
   create_compress_dictionary(input);
-  FILE *tmp = tmpfile();
+  FILE *const tmp = tmpfile();
 
   perform_compression(input, tmp);
 
   {
-    uint16_t *new_dictionary_indexes = malloc(compress_dictionary_size * sizeof(uint16_t));
+    u16 *const new_dictionary_indexes = malloc(compress_dictionary_size * sizeof(u16));
 
     optimize_compress_dictionary(new_dictionary_indexes);
     write_compress_dictionary(output);
