@@ -112,7 +112,7 @@ compress_option check_repeat_byte(FILE *input, uint32_t coverage_limit)
   if (!i) { return (compress_option){0}; }
 
   compress_option co = {FN_REPEAT_BYTE, 0, malloc(1 * sizeof(uint8_t)), 1, i};
-  *co.data = i - 1 + (FN_REPEAT_BYTE << 4);
+  *co.data = ((i - 1) << 4) + FN_REPEAT_BYTE;
   return co;
 }
 
@@ -267,10 +267,10 @@ void perform_compression(FILE *input, FILE *output)
 
     if (skip_length) {
       if (skip_length > 16) {
-        uint16_t skip_length_buff = skip_length - 1 + (FN_SKIP_LONG << 4);
+        uint16_t skip_length_buff = ((skip_length - 1) << 4) + FN_SKIP_LONG;
         fwrite(&skip_length_buff, sizeof(uint16_t), 1, output);
       } else {
-        putc(skip_length - 1 + (FN_SKIP << 4), output);
+        putc(((skip_length - 1) << 4) + FN_SKIP, output);
       }
 
       while (skip_length--) {
@@ -475,7 +475,7 @@ void delete_compress_dictionary(void)
 void write_compress_dictionary(FILE *output)
 {
   putc(0xB2, output); // write first MAGIC_HEADER part
-  uint16_t cds_with_second_magic_header_part = (444 << 4) + 0x9;
+  uint16_t cds_with_second_magic_header_part = (compress_dictionary_size << 4) + 0x9;
   fwrite(&cds_with_second_magic_header_part, sizeof(uint16_t), 1, output);
   for (uint32_t i = 0; i < compress_dictionary_size; ++i) {
     fwrite(&compress_dictionary[i].length, sizeof(uint16_t), 1, output);
