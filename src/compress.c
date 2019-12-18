@@ -171,7 +171,24 @@ compress_option check_repeat_string_long(FILE *input, u32 coverage_limit)
 
 compress_option check_mirror_string(FILE *input, u32 coverage_limit)
 {
-  return (compress_option){0};
+  coverage_limit = coverage_limit > 17 ? 17 : coverage_limit;
+  coverage_limit = coverage_limit > ftell(input) ? ftell(input) : coverage_limit;
+  if (coverage_limit < 2) { return (compress_option){0}; }
+
+  fseek(input, -(i8)coverage_limit, SEEK_CUR);
+  u8 *const str = alloca(coverage_limit * sizeof(u8));
+  fread(str, sizeof(u8), coverage_limit, input);
+
+  u8 i = 0;
+  while (i < coverage_limit && getc(input) == str[coverage_limit - i - 1]) {
+    i++;
+  }
+
+  if (i < 2) { return (compress_option){0}; }
+
+  const compress_option co = {FN_MIRROR_STRING, 0, malloc(1 * sizeof(u8)), 1, i};
+  *co.data = ((i - 2) << 4) + FN_MIRROR_STRING;
+  return co;
 }
 
 compress_option check_dictionary(FILE *input, u32 coverage_limit)
