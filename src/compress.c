@@ -203,12 +203,50 @@ compress_option check_one_particular_byte(FILE *input, u32 coverage_limit)
 
 compress_option check_arithmetic_progression(FILE *input, u32 coverage_limit)
 {
-  return (compress_option){0};
+  coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
+
+  fseek(input, -1, SEEK_CUR);
+  u8 value = getc(input);
+  const i16 factor = getc(input) - value;
+  ungetc(factor + value, input);
+
+  u8 i = 0;
+  while (getc(input) == (value += factor) && i < coverage_limit) {
+    i++;
+  }
+
+  if (!i) { return (compress_option){0}; }
+
+  const compress_option co = {FN_ARITHMETIC_PROGRESSION, 0, malloc(2 * sizeof(u8)), 2, i};
+  co.data[0] = ((i - 1) << 4) + FN_ARITHMETIC_PROGRESSION;
+  co.data[1] = factor;
+  return co;
 }
 
 compress_option check_geometric_progression(FILE *input, u32 coverage_limit)
 {
-  return (compress_option){0};
+  coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
+
+  fseek(input, -1, SEEK_CUR);
+  u8 value = getc(input);
+
+  const u8 base = getc(input);
+  if (!value || base % value) { return (compress_option){0}; }
+
+  const i16 factor = base / value;
+  ungetc(base, input);
+
+  u8 i = 0;
+  while (getc(input) == (value *= factor) && i < coverage_limit) {
+    i++;
+  }
+
+  if (!i) { return (compress_option){0}; }
+
+  const compress_option co = {FN_GEOMETRIC_PROGRESSION, 0, malloc(2 * sizeof(u8)), 2, i};
+  co.data[0] = ((i - 1) << 4) + FN_GEOMETRIC_PROGRESSION;
+  co.data[1] = factor;
+  return co;
 }
 
 compress_option check_fibonacci_progression(FILE *input, u32 coverage_limit)
@@ -255,7 +293,7 @@ void perform_compression(FILE *input, FILE *output)
   compress_option *options = malloc(options_capacity * sizeof(compress_option));
   u32 options_size = 0;
 
-  while (profit_limit > 1) {
+  while (profit_limit >= 1) {
     const u32 current_options_size = options_size;
 
     i16 ch;
