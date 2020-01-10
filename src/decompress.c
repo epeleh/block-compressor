@@ -13,22 +13,22 @@ void decompress(FILE *input, FILE *output);
 
 // ================================================================================ internal functions
 
-static void skip(FILE *input, FILE *output);                   // 0x0 | 4[FN]  4[count] 8[bytes..]
-static void skip_long(FILE *input, FILE *output);              // 0x1 | 4[FN] 12[count] 8[bytes..]
-static void repeat_byte(FILE *input, FILE *output);            // 0x2 | 4[FN]  4[count]
-static void repeat_byte_long(FILE *input, FILE *output);       // 0x3 | 4[FN] 12[count]
-static void repeat_string(FILE *input, FILE *output);          // 0x4 | 4[FN] 4[length]
-static void repeat_string_long(FILE *input, FILE *output);     // 0x5 | 4[FN] 4[length] 8[count]
-static void mirror_string(FILE *input, FILE *output);          // 0x6 | 4[FN] 4[length]
-static void dictionary(FILE *input, FILE *output);             // 0x7 | 4[FN] 12[index]
-static void one_particular_byte(FILE *input, FILE *output);    // 0x8 | 4[FN] 4[offset]
-static void arithmetic_progression(FILE *input, FILE *output); // 0x9 | 4[FN] 4[count] 8[factor]
-static void geometric_progression(FILE *input, FILE *output);  // 0xA | 4[FN] 4[count] 8[factor]
-static void fibonacci_progression(FILE *input, FILE *output);  // 0xB | 4[FN] 4[count]
-static void shift_left(FILE *input, FILE *output);             // 0xC | 4[FN] 4[count]
-static void shift_right(FILE *input, FILE *output);            // 0xD | 4[FN] 4[count]
-static void offset_segment(FILE *input, FILE *output);         // 0xE | 4[FN] 4[offset] 8[count] 4[halves..]
-static void jumping_segment(FILE *input, FILE *output);        // 0xF | 4[FN] 4[offset] 8[count] 4[halves..]
+static void skip(FILE *input, FILE *output);                   // 0x0 | - 4[FN]  4[count] 8[bytes..]
+static void skip_long(FILE *input, FILE *output);              // 0x1 | - 4[FN] 12[count] 8[bytes..]
+static void repeat_byte(FILE *input, FILE *output);            // 0x2 | + 4[FN]  4[count]
+static void repeat_byte_long(FILE *input, FILE *output);       // 0x3 | + 4[FN] 12[count]
+static void repeat_string(FILE *input, FILE *output);          // 0x4 | + 4[FN] 4[length]
+static void repeat_string_long(FILE *input, FILE *output);     // 0x5 | + 4[FN] 4[length] 8[count]
+static void mirror_string(FILE *input, FILE *output);          // 0x6 | + 4[FN] 4[length]
+static void dictionary(FILE *input, FILE *output);             // 0x7 | - 4[FN] 12[index]
+static void one_particular_byte(FILE *input, FILE *output);    // 0x8 | - 4[FN] 4[offset]
+static void arithmetic_progression(FILE *input, FILE *output); // 0x9 | + 4[FN] 4[count] 8[factor]
+static void geometric_progression(FILE *input, FILE *output);  // 0xA | + 4[FN] 4[count] 8[factor]
+static void fibonacci_progression(FILE *input, FILE *output);  // 0xB | + 4[FN] 4[count]
+static void shift_left(FILE *input, FILE *output);             // 0xC | + 4[FN] 4[count]
+static void shift_right(FILE *input, FILE *output);            // 0xD | + 4[FN] 4[count]
+static void offset_segment(FILE *input, FILE *output);         // 0xE | - 4[FN] 4[offset] 8[count] 4[halves..]
+static void jumping_segment(FILE *input, FILE *output);        // 0xF | - 4[FN] 4[offset] 8[count] 4[halves..]
 
 static void create_decompress_dictionary(FILE *input);
 static void delete_decompress_dictionary(void);

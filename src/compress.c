@@ -98,6 +98,7 @@ static compress_option (*const CHECK_FUNCTIONS[])(FILE *, u32) = {
 
 compress_option check_repeat_byte(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
 
   fseek(input, -1, SEEK_CUR);
@@ -117,6 +118,7 @@ compress_option check_repeat_byte(FILE *input, u32 coverage_limit)
 
 compress_option check_repeat_byte_long(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 4096 ? 4096 : coverage_limit;
 
   fseek(input, -1, SEEK_CUR);
@@ -137,6 +139,7 @@ compress_option check_repeat_byte_long(FILE *input, u32 coverage_limit)
 
 compress_option check_repeat_string(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 17 ? 17 : coverage_limit;
   coverage_limit = coverage_limit > ftell(input) ? ftell(input) : coverage_limit;
   if (coverage_limit < 2) { return (compress_option){0}; }
@@ -166,11 +169,13 @@ compress_option check_repeat_string(FILE *input, u32 coverage_limit)
 
 compress_option check_repeat_string_long(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   return (compress_option){0};
 }
 
 compress_option check_mirror_string(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 17 ? 17 : coverage_limit;
   coverage_limit = coverage_limit > ftell(input) ? ftell(input) : coverage_limit;
   if (coverage_limit < 2) { return (compress_option){0}; }
@@ -198,11 +203,17 @@ compress_option check_dictionary(FILE *input, u32 coverage_limit)
 
 compress_option check_one_particular_byte(FILE *input, u32 coverage_limit)
 {
-  return (compress_option){0};
+  const u8 ch = getc(input);
+  if (ch % 0x11 || !coverage_limit) { return (compress_option){0}; }
+
+  const compress_option co = {FN_ONE_PARTICULAR_BYTE, 0, malloc(1 * sizeof(u8)), 1, 1};
+  *co.data = ((ch / 0x11) << 4) + FN_ONE_PARTICULAR_BYTE;
+  return co;
 }
 
 compress_option check_arithmetic_progression(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
 
   fseek(input, -1, SEEK_CUR);
@@ -225,6 +236,7 @@ compress_option check_arithmetic_progression(FILE *input, u32 coverage_limit)
 
 compress_option check_geometric_progression(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
 
   fseek(input, -1, SEEK_CUR);
@@ -251,16 +263,19 @@ compress_option check_geometric_progression(FILE *input, u32 coverage_limit)
 
 compress_option check_fibonacci_progression(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   return (compress_option){0};
 }
 
 compress_option check_shift_left(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   return (compress_option){0};
 }
 
 compress_option check_shift_right(FILE *input, u32 coverage_limit)
 {
+  if (!ftell(input)) { return (compress_option){0}; }
   return (compress_option){0};
 }
 
@@ -298,6 +313,8 @@ void perform_compression(FILE *input, FILE *output)
 
     i16 ch;
     while ((ch = getc(input)) != EOF) {
+      ungetc(ch, input);
+
       const i32 offset = ftell(input);
       u32 coverage_limit = input_length - offset;
 
@@ -349,7 +366,7 @@ void perform_compression(FILE *input, FILE *output)
         }
       }
 
-      fseek(input, offset + best_co.coverage, SEEK_SET);
+      fseek(input, offset + (best_co.fn ? best_co.coverage : 1), SEEK_SET);
     }
 
     qsort(options, options_size, sizeof(compress_option), options_compare);
