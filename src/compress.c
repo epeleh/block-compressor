@@ -310,8 +310,7 @@ compress_option check_fibonacci_progression(FILE *input, u32 coverage_limit)
   u8 next;
 
   u32 count = 0;
-  i16 ch;
-  while ((ch = getc(input)) != EOF && ch == (next = first + second) && count < coverage_limit) {
+  while (getc(input) == (next = first + second) && count < coverage_limit) {
     first = second;
     second = next;
     count++;
@@ -327,13 +326,41 @@ compress_option check_fibonacci_progression(FILE *input, u32 coverage_limit)
 compress_option check_shift_left(FILE *input, u32 coverage_limit)
 {
   if (!ftell(input)) { return (compress_option){0}; }
-  return (compress_option){0};
+  coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
+
+  fseek(input, -1, SEEK_CUR);
+  u8 value = getc(input);
+
+  u8 count = 0;
+  while (getc(input) == (value = (value << 1) | (value >> 7)) && count < coverage_limit) {
+    count++;
+  }
+
+  if (!count) { return (compress_option){0}; }
+
+  const compress_option co = {FN_SHIFT_LEFT, 0, malloc(1 * sizeof(u8)), 1, count};
+  *co.data = ((count - 1) << 4) + FN_SHIFT_LEFT;
+  return co;
 }
 
 compress_option check_shift_right(FILE *input, u32 coverage_limit)
 {
   if (!ftell(input)) { return (compress_option){0}; }
-  return (compress_option){0};
+  coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
+
+  fseek(input, -1, SEEK_CUR);
+  u8 value = getc(input);
+
+  u8 count = 0;
+  while (getc(input) == (value = (value >> 1) | (value << 7)) && count < coverage_limit) {
+    count++;
+  }
+
+  if (!count) { return (compress_option){0}; }
+
+  const compress_option co = {FN_SHIFT_RIGHT, 0, malloc(1 * sizeof(u8)), 1, count};
+  *co.data = ((count - 1) << 4) + FN_SHIFT_RIGHT;
+  return co;
 }
 
 compress_option check_offset_segment(FILE *input, u32 coverage_limit)
