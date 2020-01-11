@@ -139,7 +139,6 @@ compress_option check_repeat_byte_long(FILE *input, u32 coverage_limit)
 
 compress_option check_repeat_string(FILE *input, u32 coverage_limit)
 {
-  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 17 ? 17 : coverage_limit;
   coverage_limit = coverage_limit > ftell(input) ? ftell(input) : coverage_limit;
   if (coverage_limit < 2) { return (compress_option){0}; }
@@ -169,13 +168,52 @@ compress_option check_repeat_string(FILE *input, u32 coverage_limit)
 
 compress_option check_repeat_string_long(FILE *input, u32 coverage_limit)
 {
-  if (!ftell(input)) { return (compress_option){0}; }
-  return (compress_option){0};
+  if (ftell(input) < 2 || coverage_limit < 4) { return (compress_option){0}; }
+  u8 length = ftell(input) > 17 ? 17 : ftell(input);
+
+  u8 *str = alloca(length * sizeof(u8));
+  fseek(input, -(i8)length, SEEK_CUR);
+  fread(str, sizeof(u8), length, input);
+
+  bool found = false;
+  for (u32 i = 0; i < length - 1; ++i) {
+    const i32 offset = ftell(input);
+
+    u32 j = i;
+    while (j < length) {
+      if (str[j++] != getc(input)) { break; }
+    }
+
+    if (j == length) {
+      found = true;
+      str += i;
+      length -= i;
+      break;
+    }
+
+    fseek(input, offset, SEEK_SET);
+  }
+
+  if (!found) { return (compress_option){0}; }
+
+  u32 count = 0;
+  i16 ch;
+  while ((ch = getc(input)) != EOF && ch == str[count % length]) {
+    count++;
+  }
+
+  count /= length;
+  if (count > 256) { count = 256; }
+  if (!count) { return (compress_option){0}; }
+
+  const compress_option co = {FN_REPEAT_STRING_LONG, 0, malloc(2 * sizeof(u8)), 2, length * (count + 1)};
+  co.data[0] = ((length - 2) << 4) + FN_REPEAT_STRING_LONG;
+  co.data[1] = count - 1;
+  return co;
 }
 
 compress_option check_mirror_string(FILE *input, u32 coverage_limit)
 {
-  if (!ftell(input)) { return (compress_option){0}; }
   coverage_limit = coverage_limit > 17 ? 17 : coverage_limit;
   coverage_limit = coverage_limit > ftell(input) ? ftell(input) : coverage_limit;
   if (coverage_limit < 2) { return (compress_option){0}; }
