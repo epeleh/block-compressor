@@ -185,7 +185,7 @@ void fibonacci_progression(FILE *input, FILE *output)
   u8 second = getc(output);
   u8 next;
 
-  for (i8 i = getc(input) >> 4; i >= 0; --i) {
+  for (i8 i = (getc(input) + 1) >> 4; i >= 0; --i) {
     next = first + second;
     first = second;
     second = next;

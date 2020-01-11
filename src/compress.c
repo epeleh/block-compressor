@@ -301,8 +301,27 @@ compress_option check_geometric_progression(FILE *input, u32 coverage_limit)
 
 compress_option check_fibonacci_progression(FILE *input, u32 coverage_limit)
 {
-  if (!ftell(input)) { return (compress_option){0}; }
-  return (compress_option){0};
+  if (ftell(input) < 2) { return (compress_option){0}; }
+  coverage_limit = coverage_limit > 16 ? 16 : coverage_limit;
+
+  fseek(input, -2, SEEK_CUR);
+  u8 first = getc(input);
+  u8 second = getc(input);
+  u8 next;
+
+  u32 count = 0;
+  i16 ch;
+  while ((ch = getc(input)) != EOF && ch == (next = first + second) && count < coverage_limit) {
+    first = second;
+    second = next;
+    count++;
+  }
+
+  if (!count) { return (compress_option){0}; }
+
+  const compress_option co = {FN_FIBONACCI_PROGRESSION, 0, malloc(1 * sizeof(u8)), 1, count};
+  *co.data = ((count - 1) << 4) + FN_FIBONACCI_PROGRESSION;
+  return co;
 }
 
 compress_option check_shift_left(FILE *input, u32 coverage_limit)
@@ -339,7 +358,7 @@ void perform_compression(FILE *input, FILE *output)
 {
   fseek(input, 0, SEEK_END);
   const u32 input_length = ftell(input);
-  double profit_limit = (double)input_length / 8;
+  double profit_limit = input_length > 8 ? (double)input_length / 8 : input_length;
   rewind(input);
 
   u32 options_capacity = 256;
