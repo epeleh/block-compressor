@@ -385,7 +385,7 @@ compress_option check_offset_segment(FILE *input, u32 coverage_limit)
   co.data[0] = offset + FN_OFFSET_SEGMENT;
   co.data[1] = count - 1;
 
-  for (u32 i = 2; count-- > 0; i++) {
+  for (u16 i = 2; count-- > 0; i++) {
     co.data[i] = (getc(input) << 4) + (getc(input) & 0x0F);
   }
 
@@ -394,7 +394,54 @@ compress_option check_offset_segment(FILE *input, u32 coverage_limit)
 
 compress_option check_jumping_segment(FILE *input, u32 coverage_limit)
 {
-  return (compress_option){0};
+  if (coverage_limit < 2) { return (compress_option){0}; }
+  coverage_limit = coverage_limit > 512 ? 512 : coverage_limit;
+
+  const i32 pos = ftell(input);
+
+  u8 value = getc(input);
+  const u8 offset = (value & 0xF0) + (((value & 0x0F) > 8) << 4);
+
+  i16 count = 1;
+  while (count < coverage_limit) {
+    const u8 ch = getc(input);
+    const u8 diff = (u8)(ch - value) < (u8)(value - ch) ? (ch - value) : (value - ch);
+    if (value == ch || diff > 8) { break; }
+
+    value = ch;
+    count++;
+  }
+
+  fseek(input, pos, SEEK_SET);
+
+  count /= 2;
+  if (count < 2) { return (compress_option){0}; }
+
+  const compress_option co = {FN_JUMPING_SEGMENT, 0, malloc((count + 2) * sizeof(u8)), count + 2, count * 2};
+  co.data[0] = offset + FN_JUMPING_SEGMENT;
+  co.data[1] = count - 1;
+
+  value = offset;
+  for (u16 i = 2; count-- > 0; i++) {
+    i8 pair[2];
+
+    for (u8 j = 0; j < 2; ++j) {
+      const u8 ch = getc(input);
+
+      if (abs(ch - value) > 8) {
+        pair[j] = value > ch ? (u8)(ch - value) : -(u8)(value - ch);
+      } else {
+        pair[j] = ch - value;
+      }
+
+      pair[j] = (pair[j] + 8 - (pair[j] > 0));
+      value = ch;
+    }
+
+    co.data[i] = (pair[0] << 4) + (pair[1] & 0x0F);
+  }
+
+  return co;
 }
 
 i32 options_compare(const void *a, const void *b)

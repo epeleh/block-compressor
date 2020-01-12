@@ -227,7 +227,7 @@ void offset_segment(FILE *input, FILE *output)
 
 void jumping_segment(FILE *input, FILE *output)
 {
-  u8 value = (getc(input) & 0xF0) + 8;
+  u8 value = getc(input) & 0xF0;
   for (i16 i = getc(input); i >= 0; --i) {
     const u8 ch = getc(input);
 
