@@ -1,6 +1,7 @@
 #include "types.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 enum function_number {
   FN_SKIP,
@@ -24,7 +25,7 @@ enum function_number {
 typedef struct compress_dictionary_item_t {
   u8 *data;
   u16 length;
-  bool used;
+  u32 usage_count;
 } compress_dictionary_item;
 
 typedef struct compress_option_t {
@@ -71,7 +72,7 @@ static void write_compress_data(FILE *input, FILE *output, const u16 *new_dictio
 
 static compress_option next_comparison_option = {0};
 
-static const u32 CD_ITEM_LENGTH_LIMIT = 4;
+static const u32 CD_ITEM_LENGTH_LIMIT = 6;
 static compress_dictionary_item *compress_dictionary = NULL;
 static u16 compress_dictionary_size = 0;
 
@@ -570,24 +571,17 @@ void perform_compression(FILE *input, FILE *output)
   free(options);
 }
 
-// ================================================================================ TODO: Refactor code below
-
 i32 parts_compare(const void *a, const void *b)
 {
-  i16 *av = *(i16 **)a;
-  i16 *bv = *(i16 **)b;
+  const i16 *const av = *(i16 **)a;
+  const i16 *const bv = *(i16 **)b;
 
   u32 min_length = 0;
   while (av[min_length] != EOF && bv[min_length] != EOF) {
     min_length++;
   }
 
-  for (u32 i = 0; i < min_length; ++i) {
-    if (av[i] == bv[i]) { continue; }
-    return av[i] - bv[i];
-  }
-
-  return 0;
+  return memcmp(av, bv, min_length * sizeof(i16));
 }
 
 void create_compress_dictionary(FILE *input)
@@ -605,7 +599,7 @@ void create_compress_dictionary(FILE *input)
 
     if (parts_count < 2) { continue; }
 
-    i16 **parts = calloc(parts_count, sizeof(i16 *));
+    i16 **const parts = calloc(parts_count, sizeof(i16 *));
     {
       rewind(input);
       i16 ch;
@@ -672,12 +666,15 @@ void create_compress_dictionary(FILE *input)
           parts_i++;
         }
 
-        for (u32 j = 0; parts[last_parts_i][j] == parts[parts_i][j]; ++j) {
-          if (parts[parts_i][j] != EOF) { continue; }
+        u32 part_length = 0;
+        while (parts[parts_i][part_length] != EOF) {
+          part_length++;
+        }
+
+        if (parts_i < parts_count - 1 && !memcmp(parts[last_parts_i], parts[parts_i], part_length * sizeof(i16))) {
           actual_parts_count--;
           free(parts[last_parts_i]);
           parts[last_parts_i] = NULL;
-          break;
         }
 
         last_parts_i = parts_i++;
@@ -719,7 +716,7 @@ void create_compress_dictionary(FILE *input)
           compress_dictionary[cdi].data[j] = parts[parts_i][j];
         }
 
-        compress_dictionary[cdi].used = false;
+        compress_dictionary[cdi].usage_count = 0;
         free(parts[parts_i++]);
       }
     }
@@ -728,9 +725,9 @@ void create_compress_dictionary(FILE *input)
   }
 }
 
+// TODO: This function is empty
 void optimize_compress_dictionary(u16 *new_dictionary_indexes)
 {
-  // TODO:
   // Compress compress_dictionary data
   // Fill new_dictionary_indexes
   // Reallocate compress_dictionary
@@ -750,10 +747,8 @@ void delete_compress_dictionary(void)
 
 void write_compress_dictionary(FILE *output)
 {
-  delete_compress_dictionary(); // TODO: remove this line
-
   putc(0xB2, output); // write first MAGIC_HEADER part
-  u16 cds_with_second_magic_header_part = (compress_dictionary_size << 4) + 0x9;
+  const u16 cds_with_second_magic_header_part = (compress_dictionary_size << 4) + 0x9;
   fwrite(&cds_with_second_magic_header_part, sizeof(u16), 1, output);
   for (u32 i = 0; i < compress_dictionary_size; ++i) {
     fwrite(&compress_dictionary[i].length, sizeof(u16), 1, output);
@@ -761,11 +756,11 @@ void write_compress_dictionary(FILE *output)
   }
 }
 
+// TODO: This function does not work properly (should change dictionary indexes)
 void write_compress_data(FILE *input, FILE *output, const u16 *new_dictionary_indexes)
 {
   rewind(input);
 
-  // TODO: should change dictionary indexes
   i16 ch;
   while ((ch = getc(input)) != EOF) {
     putc(ch, output);
