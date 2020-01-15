@@ -26,6 +26,7 @@ typedef struct compress_dictionary_item_t {
   u8 *data;
   u16 length;
   u32 usage_count;
+  u16 index;
 } compress_dictionary_item;
 
 typedef struct compress_option_t {
@@ -42,7 +43,10 @@ void compress(FILE *input, FILE *output);
 
 // ================================================================================ internal functions
 
-static i32 dictionary_items_compare(const void *a, const void *b);
+static i32 dictionary_items_data_compare(const void *a, const void *b);
+static i32 dictionary_items_usage_count_compare(const void *a, const void *b);
+static i32 dictionary_items_length_compare(const void *a, const void *b);
+
 static i32 options_compare(const void *a, const void *b);
 static i32 parts_compare(const void *a, const void *b);
 
@@ -72,7 +76,7 @@ static void write_compress_data(FILE *input, FILE *output, const u16 *new_dictio
 
 // ================================================================================ internal variables
 
-static compress_option next_comparison_option = {0};
+static compress_option next_comparison_option;
 
 static const u32 CD_ITEM_LENGTH_LIMIT = 6;
 static compress_dictionary_item *compress_dictionary = NULL;
@@ -99,11 +103,21 @@ static compress_option (*const CHECK_FUNCTIONS[])(FILE *, u32) = {
 
 // ================================================================================ definitions
 
-i32 dictionary_items_compare(const void *a, const void *b)
+i32 dictionary_items_data_compare(const void *a, const void *b)
 {
   const compress_dictionary_item av = *(compress_dictionary_item *)a;
   const compress_dictionary_item bv = *(compress_dictionary_item *)b;
   return memcmp(av.data, bv.data, (av.length < bv.length ? av.length : bv.length) * sizeof(u8));
+}
+
+i32 dictionary_items_usage_count_compare(const void *a, const void *b)
+{
+  return ((compress_dictionary_item *)b)->usage_count - ((compress_dictionary_item *)a)->usage_count;
+}
+
+i32 dictionary_items_length_compare(const void *a, const void *b)
+{
+  return ((compress_dictionary_item *)a)->length - ((compress_dictionary_item *)b)->length;
 }
 
 i32 options_compare(const void *a, const void *b)
@@ -270,13 +284,13 @@ compress_option check_dictionary(FILE *input, u32 coverage_limit)
   if (coverage_limit < CD_ITEM_LENGTH_LIMIT) { return (compress_option){0}; }
 
   const compress_dictionary_item *found_item = NULL;
-  compress_dictionary_item key_item = {malloc((CD_ITEM_LENGTH_LIMIT + 1) * sizeof(u8)), CD_ITEM_LENGTH_LIMIT, 0};
+  compress_dictionary_item key_item = {malloc((CD_ITEM_LENGTH_LIMIT + 1) * sizeof(u8)), CD_ITEM_LENGTH_LIMIT, 0, 0};
   fread(key_item.data, sizeof(u8), CD_ITEM_LENGTH_LIMIT, input);
 
   for (;;) {
     const compress_dictionary_item *const item =
       bsearch(&key_item, compress_dictionary, compress_dictionary_size,
-              sizeof(compress_dictionary_item), dictionary_items_compare);
+              sizeof(compress_dictionary_item), dictionary_items_data_compare);
 
     if (!item) { break; }
 
@@ -618,17 +632,6 @@ void perform_compression(FILE *input, FILE *output)
 
     if (!options[i].fn) { continue; }
 
-    // TODO: lines below just for debug
-    printf("options[%d].fn = %d\n", i, options[i].fn);
-    printf("options[%d].offset = %d\n", i, options[i].offset);
-    printf("options[%d].length = %d\n", i, options[i].length);
-    printf("options[%d].coverage = %d\n", i, options[i].coverage);
-    printf("options[%d].data = %p\n", i, options[i].data);
-    for (u32 j = 0; j < options[i].length; ++j) {
-      printf("options[%d].data[%d] = %x\n", i, j, options[i].data[j]);
-    }
-    printf("\n");
-
     fwrite(options[i].data, sizeof(u8), options[i].length, output);
     free(options[i].data);
     fseek(input, options[i].coverage, SEEK_CUR);
@@ -770,6 +773,7 @@ void create_compress_dictionary(FILE *input)
         }
 
         compress_dictionary[cdi].usage_count = 0;
+        compress_dictionary[cdi].index = cdi;
         free(parts[parts_i++]);
       }
     }
@@ -778,13 +782,30 @@ void create_compress_dictionary(FILE *input)
   }
 }
 
-// TODO: This function is empty
 void optimize_compress_dictionary(u16 *new_dictionary_indexes)
 {
-  // Compress compress_dictionary data
-  // Fill new_dictionary_indexes
-  // Reallocate compress_dictionary
-  // Change compress_dictionary_size
+  qsort(compress_dictionary, compress_dictionary_size,
+        sizeof(compress_dictionary_item), dictionary_items_usage_count_compare);
+
+  {
+    u16 ucgto_size = 0;
+    while (compress_dictionary[ucgto_size].usage_count > 1 && ucgto_size < compress_dictionary_size) {
+      ucgto_size++;
+    }
+
+    u16 ucgtz_size = ucgto_size;
+    while (compress_dictionary[ucgtz_size].usage_count > 0 && ucgtz_size < compress_dictionary_size) {
+      ucgtz_size++;
+    }
+
+    qsort(compress_dictionary, ucgto_size, sizeof(compress_dictionary_item), dictionary_items_length_compare);
+    qsort(compress_dictionary + ucgto_size, ucgtz_size - ucgto_size,
+          sizeof(compress_dictionary_item), dictionary_items_length_compare);
+  }
+
+  for (u16 i = 0; i < compress_dictionary_size; ++i) {
+    new_dictionary_indexes[compress_dictionary[i].index] = i;
+  }
 }
 
 // TODO: Clear debugging functionality
@@ -793,8 +814,10 @@ void delete_compress_dictionary(void)
   puts("============================================== delete_compress_dictionary =====");
   printf("compress_dictionary_size = %d\n==============================================\n", compress_dictionary_size);
   for (u16 i = 0; i < compress_dictionary_size; ++i) {
-    printf("%d) l=%d; uc=%d | ", i, compress_dictionary[i].length, compress_dictionary[i].usage_count);
-    for (u32 j = 0; j < compress_dictionary[i].length; ++j) {
+    printf("%d) l=%d; uc=%d; i=%d | ", i, compress_dictionary[i].length,
+           compress_dictionary[i].usage_count, compress_dictionary[i].index);
+
+    for (u16 j = 0; j < compress_dictionary[i].length; ++j) {
       printf("%c", compress_dictionary[i].data[j]);
     }
     puts("\n----------------------------------------------");
@@ -802,18 +825,24 @@ void delete_compress_dictionary(void)
     free(compress_dictionary[i].data);
   }
 
-  compress_dictionary_size = 0;
   free(compress_dictionary);
   compress_dictionary = NULL;
+  compress_dictionary_size = 0;
   puts("===============================================================================");
 }
 
 void write_compress_dictionary(FILE *output)
 {
+  u16 cds = 0;
+  while (compress_dictionary[cds].usage_count > 1) {
+    cds++;
+  }
+
   putc(0xB2, output); // write first MAGIC_HEADER part
-  const u16 cds_with_second_magic_header_part = (compress_dictionary_size << 4) + 0x9;
+  const u16 cds_with_second_magic_header_part = (cds << 4) + 0x9;
   fwrite(&cds_with_second_magic_header_part, sizeof(u16), 1, output);
-  for (u32 i = 0; i < compress_dictionary_size; ++i) {
+
+  for (u16 i = 0; i < cds; ++i) {
     fwrite(&compress_dictionary[i].length, sizeof(u16), 1, output);
     fwrite(compress_dictionary[i].data, sizeof(u8), compress_dictionary[i].length, output);
   }
