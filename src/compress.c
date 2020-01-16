@@ -853,11 +853,10 @@ void write_compress_dictionary(FILE *output)
 
   for (u16 i = 0; i < cds; ++i) {
     fwrite(&compress_dictionary[i].length, sizeof(u16), 1, output);
-    fwrite(compress_dictionary[i].data, sizeof(u8), compress_dictionary[i].length, output);
+    fwrite(compress_dictionary[i].data, sizeof(u8), compress_dictionary[i].length & 0x7FFF, output);
   }
 }
 
-// TODO: This function does not work properly (should change dictionary indexes)
 void write_compress_data(FILE *input, FILE *output, const u16 *new_dictionary_indexes)
 {
   rewind(input);
@@ -865,6 +864,53 @@ void write_compress_data(FILE *input, FILE *output, const u16 *new_dictionary_in
   i16 ch;
   while ((ch = getc(input)) != EOF) {
     putc(ch, output);
+    u32 to_copy = 0;
+
+    switch (ch & 0x0F) {
+    case FN_SKIP: {
+      to_copy = (ch >> 4) + 1;
+      break;
+    }
+
+    case FN_SKIP_LONG: {
+      const u8 ch2 = getc(input);
+      to_copy = (ch >> 4) + (ch2 << 4) + 1;
+      putc(ch2, output);
+      break;
+    }
+
+    case FN_DICTIONARY: {
+      fseek(output, -1, SEEK_CUR);
+      const u16 i = new_dictionary_indexes[(ch >> 4) + (getc(input) << 4)];
+
+      if (compress_dictionary[i].usage_count == 1) {
+        fwrite(compress_dictionary[i].data, sizeof(u8), compress_dictionary[i].length & 0x7FFF, output);
+        break;
+      }
+
+      const u16 new_index_and_fn = (i << 4) + FN_DICTIONARY;
+      fwrite(&new_index_and_fn, sizeof(u16), 1, output);
+      break;
+    }
+
+    case FN_OFFSET_SEGMENT:
+    case FN_JUMPING_SEGMENT: {
+      const u8 ch2 = getc(input);
+      to_copy = ch2 + 1;
+      putc(ch2, output);
+      break;
+    }
+
+    case FN_REPEAT_BYTE_LONG:
+    case FN_REPEAT_STRING_LONG:
+    case FN_ARITHMETIC_PROGRESSION:
+    case FN_GEOMETRIC_PROGRESSION:
+      to_copy = 1;
+    }
+
+    while (to_copy--) {
+      putc(getc(input), output);
+    }
   }
 }
 
