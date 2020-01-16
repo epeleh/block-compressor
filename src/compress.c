@@ -788,12 +788,12 @@ void optimize_compress_dictionary(u16 *new_dictionary_indexes)
         sizeof(compress_dictionary_item), dictionary_items_usage_count_compare);
 
   u16 ucgto_size = 0;
-  while (compress_dictionary[ucgto_size].usage_count > 1 && ucgto_size < compress_dictionary_size) {
+  while (ucgto_size < compress_dictionary_size && compress_dictionary[ucgto_size].usage_count > 1) {
     ucgto_size++;
   }
 
   u16 ucgtz_size = ucgto_size;
-  while (compress_dictionary[ucgtz_size].usage_count > 0 && ucgtz_size < compress_dictionary_size) {
+  while (ucgtz_size < compress_dictionary_size && compress_dictionary[ucgtz_size].usage_count > 0) {
     ucgtz_size++;
   }
 
@@ -843,7 +843,7 @@ void delete_compress_dictionary(void)
 void write_compress_dictionary(FILE *output)
 {
   u16 cds = 0;
-  while (compress_dictionary[cds].usage_count > 1) {
+  while (cds < compress_dictionary_size && compress_dictionary[cds].usage_count > 1) {
     cds++;
   }
 
