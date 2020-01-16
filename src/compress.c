@@ -221,12 +221,12 @@ compress_option check_repeat_string_long(FILE *input, u32 coverage_limit)
   fread(str, sizeof(u8), length, input);
 
   bool found = false;
-  for (u32 i = 0; i < length - 1; ++i) {
+  for (u8 i = 0; i < length - 1; ++i) {
     const i32 offset = ftell(input);
 
-    u32 j = i;
-    while (j < length) {
-      if (str[j++] != getc(input)) { break; }
+    u8 j = i;
+    while (j < length && str[j] == getc(input)) {
+      j++;
     }
 
     if (j == length) {
@@ -615,9 +615,21 @@ void perform_compression(FILE *input, FILE *output)
   rewind(input);
 
   for (u32 i = 0; i < options_size; ++i) {
-    u16 skip_length = options[i].offset - ftell(input);
+    u32 skip_length = options[i].offset - ftell(input);
 
-    if (skip_length) {
+    while (skip_length) {
+      if (skip_length > 4096) {
+        const u16 skip_length_buff = 0xFFF0 + FN_SKIP_LONG;
+        fwrite(&skip_length_buff, sizeof(u16), 1, output);
+
+        for (u16 j = 0; j < 4096; ++j) {
+          putc(getc(input), output);
+        }
+
+        skip_length -= 4096;
+        continue;
+      }
+
       if (skip_length > 16) {
         const u16 skip_length_buff = ((skip_length - 1) << 4) + FN_SKIP_LONG;
         fwrite(&skip_length_buff, sizeof(u16), 1, output);
@@ -628,6 +640,8 @@ void perform_compression(FILE *input, FILE *output)
       while (skip_length--) {
         putc(getc(input), output);
       }
+
+      break;
     }
 
     if (!options[i].fn) { continue; }

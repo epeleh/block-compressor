@@ -68,8 +68,8 @@ void skip(FILE *input, FILE *output)
 
 void skip_long(FILE *input, FILE *output)
 {
-  i16 i;
-  fread(&i, sizeof(i16), 1, input);
+  i32 i;
+  fread(&i, sizeof(u16), 1, input);
   i >>= 4;
 
   while (i-- >= 0) {
@@ -92,8 +92,8 @@ void repeat_byte_long(FILE *input, FILE *output)
   fseek(output, -1, SEEK_CUR);
   const u8 ch = getc(output);
 
-  i16 i;
-  fread(&i, sizeof(i16), 1, input);
+  i32 i;
+  fread(&i, sizeof(u16), 1, input);
   i >>= 4;
 
   while (i-- >= 0) {
@@ -293,7 +293,7 @@ void decompress(FILE *input, FILE *output)
 
   i16 ch;
   while ((ch = getc(input)) != EOF) {
-    ungetc(ch, input);
+    fseek(input, -1, SEEK_CUR);
     DECOMPRESS_FUNCTIONS[ch & 0x0F](input, output);
   }
 
