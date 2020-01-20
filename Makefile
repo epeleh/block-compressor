@@ -1,6 +1,6 @@
 .PHONY: clean format test
 
-CFLAGS=-Wall -O0 -g3
+CFLAGS=-Wall -Wno-unused-result -O3
 SOURCE_DIR=src
 TARGET_DIR=target
 
@@ -8,7 +8,7 @@ HEADERS=$(wildcard $(SOURCE_DIR)/*.h)
 SOURCES=$(wildcard $(SOURCE_DIR)/*.c)
 
 OBJECTS=$(SOURCES:$(SOURCE_DIR)/%.c=$(TARGET_DIR)/%.o)
-EXECUTABLE=$(TARGET_DIR)/bc
+EXECUTABLE=$(TARGET_DIR)/bczip
 
 $(EXECUTABLE): $(OBJECTS)
 	mkdir -p $(TARGET_DIR)
@@ -31,3 +31,10 @@ format:
 test:
 	$(MAKE)
 	ruby -I.:test -e "ARGV.each { |f| require f }" test/*_test.rb
+
+install:
+	$(MAKE)
+	cp $(EXECUTABLE) /usr/bin/bczip
+
+uninstall:
+	rm -f /usr/bin/bczip

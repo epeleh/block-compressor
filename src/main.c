@@ -1,12 +1,15 @@
+#include "types.h"
 #include <ctype.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-#define APP_NAME "bc"
-#define MAGIC_HEADER 0xB209
+#define APP_NAME "bczip"
+#define EXT_NAME "bc"
+#define MAGIC_HEADER 0xBC09
+
+#define eprintf(...) fprintf(stderr, __VA_ARGS__)
 
 extern void compress(FILE *input, FILE *output);
 extern void decompress(FILE *input, FILE *output);
@@ -36,7 +39,9 @@ static void print_help(void)
     "  -k, --keep        keep (don't delete) input files\n"
     "  -q, --quiet       suppress all warnings\n"
     "  -v, --verbose     verbose mode\n"
-    "  -V, --version     display version number\n");
+    "  -V, --version     display version number\n"
+    "\n"
+    "With no FILE, read standard input.");
 }
 
 static void print_version(void)
@@ -46,19 +51,28 @@ static void print_version(void)
 
 static bool file_exist(const char *filepath)
 {
-  FILE *file = fopen(filepath, "rb");
+  FILE *const file = fopen(filepath, "rb");
   if (!file) { return false; }
   fclose(file);
   return true;
 }
 
-// TODO: add tests and then refactor
+static bool magic_header_valid(FILE *compressed_file)
+{
+  rewind(compressed_file);
+  return (getc(compressed_file) << 8) + (getc(compressed_file) & 0x0F) == MAGIC_HEADER;
+}
+
 int main(int argc, char *argv[])
 {
   command_line_options options = {0};
+  bool no_files = true;
   {
-    for (size_t i = 1; i < argc; ++i) {
-      if (argv[i][0] != '-') { continue; }
+    for (u32 i = 1; i < argc; ++i) {
+      if (argv[i][0] != '-') {
+        no_files = false;
+        continue;
+      }
 
       if (argv[i][1] == '-') {
         if (!strcmp(argv[i] + 2, "stdout")) {
@@ -78,13 +92,13 @@ int main(int argc, char *argv[])
         } else if (!strcmp(argv[i] + 2, "version")) {
           options.version = true;
         } else {
-          printf(APP_NAME ": invalid option '%s'\n", argv[i]);
+          eprintf(APP_NAME ": invalid option '%s'\n", argv[i]);
           return 1;
         }
         continue;
       }
 
-      for (size_t j = 1; argv[i][j]; ++j) {
+      for (u32 j = 1; argv[i][j]; ++j) {
         if (argv[i][j] == 'c') {
           options.stdout = true;
         } else if (argv[i][j] == 'd') {
@@ -102,14 +116,14 @@ int main(int argc, char *argv[])
         } else if (argv[i][j] == 'V') {
           options.version = true;
         } else {
-          printf(APP_NAME ": invalid option '-%c'\n", argv[i][j]);
+          eprintf(APP_NAME ": invalid option '-%c'\n", argv[i][j]);
           return 1;
         }
       }
     }
   }
 
-  if (options.help || argc < 2) {
+  if (options.help) {
     print_help();
     return 0;
   }
@@ -119,46 +133,78 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  for (size_t i = 1; i < argc; ++i) {
+  if (!isatty(fileno(stdin)) && no_files) {
+    FILE *const input_tmp = tmpfile();
+    FILE *const output_tmp = tmpfile();
+
+    i16 ch;
+    while ((ch = getc(stdin)) != EOF) {
+      putc(ch, input_tmp);
+    }
+
+    if (options.decompress) {
+      if (magic_header_valid(input_tmp)) {
+        decompress(input_tmp, output_tmp);
+      } else {
+        if (!options.quiet) { eprintf(APP_NAME ": stdin not in " APP_NAME " format\n"); }
+      }
+    } else {
+      compress(input_tmp, output_tmp);
+    }
+
+    rewind(output_tmp);
+    while ((ch = getc(output_tmp)) != EOF) {
+      putc(ch, stdout);
+    }
+
+    fclose(input_tmp);
+    fclose(output_tmp);
+    return 0;
+  }
+
+  if (no_files) {
+    print_help();
+    return 0;
+  }
+
+  for (u32 i = 1; i < argc; ++i) {
     if (argv[i][0] == '-') { continue; }
 
-    FILE *input = fopen(argv[i], "rb+");
+    FILE *const input = fopen(argv[i], "rb+");
     if (!input) {
-      if (!options.quiet) { printf(APP_NAME ": no such file '%s'\n", argv[i]); }
+      if (!options.quiet) { eprintf(APP_NAME ": no such file '%s'\n", argv[i]); }
       continue;
     }
 
-    size_t input_pathname_length = strlen(argv[i]);
-    size_t output_pathname_length;
+    const u32 input_pathname_length = strlen(argv[i]);
+    u32 output_pathname_length;
     char *output_pathname;
     FILE *output;
 
     if (options.decompress) {
-      if (input_pathname_length < strlen(APP_NAME) + 2 ||
-          strcmp(argv[i] + input_pathname_length - strlen(APP_NAME) - 1, "." APP_NAME)) {
-        if (!options.quiet) { printf(APP_NAME ": '%s' has unknown suffix\n", argv[i]); }
+      if (input_pathname_length < strlen(EXT_NAME) + 2 ||
+          strcmp(argv[i] + input_pathname_length - strlen(EXT_NAME) - 1, "." EXT_NAME)) {
+        if (!options.quiet) { eprintf(APP_NAME ": '%s' has unknown suffix\n", argv[i]); }
         fclose(input);
         continue;
       }
 
-      if (getc(input) != (MAGIC_HEADER >> 8) || (getc(input) & 0xF) != (MAGIC_HEADER & 0xFF)) {
-        if (!options.quiet) { printf(APP_NAME ": '%s' not in %s format\n", argv[i], APP_NAME); }
+      if (!magic_header_valid(input)) {
+        if (!options.quiet) { eprintf(APP_NAME ": '%s' not in " APP_NAME " format\n", argv[i]); }
         fclose(input);
         continue;
       }
 
-      output_pathname_length = input_pathname_length - strlen(APP_NAME) - 1;
+      output_pathname_length = input_pathname_length - strlen(EXT_NAME) - 1;
       output_pathname = malloc((output_pathname_length + 1) * sizeof(char));
       memcpy(output_pathname, argv[i], output_pathname_length);
       output_pathname[output_pathname_length] = '\0';
 
-      // TODO: this piece of code is duplicated below
-      // ==========================================================================================
       if (!options.force && !options.stdout && file_exist(output_pathname)) {
         printf(APP_NAME ": '%s' already exists; do you want to overwrite (y/N)? ", output_pathname);
-        int16_t ch = getchar();
+        i16 ch = getchar();
 
-        int16_t c = ch;
+        i16 c = ch;
         while (c != EOF && c != '\n') {
           c = getchar();
         }
@@ -171,37 +217,33 @@ int main(int argc, char *argv[])
         }
       }
 
-      output = options.stdout ? stdout : fopen(output_pathname, "wb+");
+      output = options.stdout ? tmpfile() : fopen(output_pathname, "wb+");
       if (!output) {
-        if (!options.quiet) { printf(APP_NAME ": '%s' can't open output stream\n", argv[i]); }
+        if (!options.quiet) { eprintf(APP_NAME ": '%s' can't open output stream\n", argv[i]); }
         fclose(input);
         free(output_pathname);
         continue;
       }
-      // ==========================================================================================
 
-      rewind(input);
       decompress(input, output);
     } else {
-      if (input_pathname_length > strlen(APP_NAME) + 1 &&
-          !strcmp(argv[i] + input_pathname_length - strlen(APP_NAME) - 1, "." APP_NAME)) {
-        if (!options.quiet) { printf(APP_NAME ": '%s' already has .%s suffix\n", argv[i], APP_NAME); }
+      if (input_pathname_length > strlen(EXT_NAME) + 1 &&
+          !strcmp(argv[i] + input_pathname_length - strlen(EXT_NAME) - 1, "." EXT_NAME)) {
+        if (!options.quiet) { eprintf(APP_NAME ": '%s' already has '." EXT_NAME "' suffix\n", argv[i]); }
         fclose(input);
         continue;
       }
 
-      output_pathname_length = strlen(argv[i]) + strlen(APP_NAME) + 1;
+      output_pathname_length = strlen(argv[i]) + strlen(EXT_NAME) + 1;
       output_pathname = malloc((output_pathname_length + 1) * sizeof(char));
       memcpy(output_pathname, argv[i], input_pathname_length + 1);
-      strncat(output_pathname, "." APP_NAME, strlen(APP_NAME) + 1);
+      strncat(output_pathname, "." EXT_NAME, strlen(EXT_NAME) + 1);
 
-      // TODO: this piece of code is duplicated above
-      // ==========================================================================================
       if (!options.force && !options.stdout && file_exist(output_pathname)) {
         printf(APP_NAME ": '%s' already exists; do you want to overwrite (y/N)? ", output_pathname);
-        int16_t ch = getchar();
+        i16 ch = getchar();
 
-        int16_t c = ch;
+        i16 c = ch;
         while (c != EOF && c != '\n') {
           c = getchar();
         }
@@ -214,14 +256,13 @@ int main(int argc, char *argv[])
         }
       }
 
-      output = options.stdout ? stdout : fopen(output_pathname, "wb+");
+      output = options.stdout ? tmpfile() : fopen(output_pathname, "wb+");
       if (!output) {
-        if (!options.quiet) { printf(APP_NAME ": '%s' can't open output stream\n", argv[i]); }
+        if (!options.quiet) { eprintf(APP_NAME ": '%s' can't open output stream\n", argv[i]); }
         fclose(input);
         free(output_pathname);
         continue;
       }
-      // ==========================================================================================
 
       compress(input, output);
     }
@@ -238,6 +279,15 @@ int main(int argc, char *argv[])
       }
 
       printf(APP_NAME ": '%s'\t%3.1f%% replaced with '%s'\n", argv[i], diff * 100, output_pathname);
+    }
+
+    if (options.stdout) {
+      rewind(output);
+
+      i16 ch;
+      while ((ch = getc(output)) != EOF) {
+        putc(ch, stdout);
+      }
     }
 
     fclose(input);

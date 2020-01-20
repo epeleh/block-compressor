@@ -861,7 +861,7 @@ void write_compress_dictionary(FILE *output)
     cds++;
   }
 
-  putc(0xB2, output); // write first MAGIC_HEADER part
+  putc(0xBC, output); // write first MAGIC_HEADER part
   const u16 cds_with_second_magic_header_part = (cds << 4) + 0x9;
   fwrite(&cds_with_second_magic_header_part, sizeof(u16), 1, output);
 
