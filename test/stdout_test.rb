@@ -6,7 +6,7 @@ class StdoutTest < Test::Unit::TestCase
   def test_stdout_compress
     tmp = Tempfile.new.tap { |x| x.write('Hi') }.tap(&:close).path
 
-    assert_not_empty `#{EXEC} --stdout #{tmp}`
+    assert_not_empty(`#{EXEC} --stdout #{tmp}`)
     assert File.exist?(tmp)
   end
 
@@ -14,7 +14,7 @@ class StdoutTest < Test::Unit::TestCase
     tmp = Tempfile.new.tap { |x| x.write('Hi') }.tap(&:close).path
     `#{EXEC} #{tmp}`
 
-    assert_not_empty `#{EXEC} -dc #{tmp + '.' + APP_NAME}`
-    assert File.exist?(tmp + '.' + APP_NAME)
+    assert_equal('Hi', `#{EXEC} -dc #{tmp}.#{EXT_NAME}`)
+    assert File.exist?("#{tmp}.#{EXT_NAME}")
   end
 end

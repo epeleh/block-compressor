@@ -3,52 +3,48 @@
 require_relative 'global'
 
 class ForceTest < Test::Unit::TestCase
-  def test_compress_force
-    tmp = Tempfile.new.tap { |x| x.write('Hi') }.tap(&:close).path
-    `#{EXEC} -k #{tmp}`
+  def setup
+    @tmp = Tempfile.new.tap { |x| x.write('Hi') }.tap(&:close).path
+    `#{EXEC} -k #{@tmp}`
 
-    mtime = File.mtime(tmp + '.' + APP_NAME)
+    @mtime = File.mtime("#{@tmp}.#{EXT_NAME}")
     sleep 1
+  end
 
-    assert_equal 0, `#{EXEC} --force #{tmp}; printf $?`.to_i
-    assert_not_equal mtime.to_i, File.mtime(tmp + '.' + APP_NAME).to_i
+  def test_compress_force
+    out, err, stat = Open3.capture3("#{EXEC} --force #{@tmp}")
+    assert(stat.success?)
+    assert(err.empty?)
+    assert(out.empty?)
+
+    assert_not_equal(@mtime.to_i, File.mtime("#{@tmp}.#{EXT_NAME}").to_i)
   end
 
   def test_compress_not_force
-    tmp = Tempfile.new.tap { |x| x.write('Hi') }.tap(&:close).path
-    `#{EXEC} -k #{tmp}`
+    out, err, stat = Open3.capture3("echo 'no' | #{EXEC} #{@tmp}")
+    assert(stat.success?)
+    assert(err.empty?)
+    assert_equal("#{APP_NAME}: '#{@tmp}.#{EXT_NAME}' already exists; do you want to overwrite (y/N)? " \
+                 "\tnot overwritten\n", out)
 
-    mtime = File.mtime(tmp + '.' + APP_NAME)
-    sleep 1
-
-    output = "#{APP_NAME}: '#{tmp}.#{APP_NAME}' already exists; do you want to overwrite (y/N)? "
-    output += "\tnot overwritten\n"
-    assert_equal output, `printf 'no\n' | #{EXEC} #{tmp}`
-
-    assert_equal mtime.to_i, File.mtime(tmp + '.' + APP_NAME).to_i
+    assert_equal(@mtime.to_i, File.mtime("#{@tmp}.#{EXT_NAME}").to_i)
   end
 
   def test_decompress_force
-    tmp = Tempfile.new.tap { |x| x.write('Hi') }.tap(&:close).path
-    `#{EXEC} -k #{tmp}`
+    out, err, stat = Open3.capture3("#{EXEC} -df #{@tmp}.#{EXT_NAME}")
+    assert(stat.success?)
+    assert(err.empty?)
+    assert(out.empty?)
 
-    mtime = File.mtime(tmp)
-    sleep 1
-
-    assert_equal 0, `#{EXEC} -df #{tmp + '.' + APP_NAME}; printf $?`.to_i
-    assert_not_equal mtime.to_i, File.mtime(tmp).to_i
+    assert_not_equal(@mtime.to_i, File.mtime(@tmp).to_i)
   end
 
   def test_decompress_not_force
-    tmp = Tempfile.new.tap { |x| x.write('Hi') }.tap(&:close).path
-    `#{EXEC} -k #{tmp}`
+    out, err, stat = Open3.capture3("echo 'yes' | #{EXEC} --decompress #{@tmp}.#{EXT_NAME}")
+    assert(stat.success?)
+    assert(err.empty?)
+    assert_equal("#{APP_NAME}: '#{@tmp}' already exists; do you want to overwrite (y/N)? ", out)
 
-    mtime = File.mtime(tmp)
-    sleep 1
-
-    output = "#{APP_NAME}: '#{tmp}' already exists; do you want to overwrite (y/N)? "
-    assert_equal output, `printf 'Yes!\n' | #{EXEC} --decompress #{tmp + '.' + APP_NAME}`
-
-    assert_not_equal mtime.to_i, File.mtime(tmp).to_i
+    assert_not_equal(@mtime.to_i, File.mtime(@tmp).to_i)
   end
 end

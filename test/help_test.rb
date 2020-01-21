@@ -8,14 +8,14 @@ class HelpTest < Test::Unit::TestCase
   end
 
   def test_shortcut
-    assert_equal `#{EXEC} --help`, `#{EXEC} -h`
+    assert_equal(`#{EXEC} --help`, `#{EXEC} -h`)
   end
 
   def test_with_other_options
-    assert_equal `#{EXEC} --help`, `#{EXEC} -Vhvfc`
+    assert_equal(`#{EXEC} --help`, `#{EXEC} -Vhvfc`)
   end
 
   def test_without_options
-    assert_equal `#{EXEC} --help`, `#{EXEC}`
+    assert_equal(`#{EXEC} --help`, `#{EXEC}`)
   end
 end
